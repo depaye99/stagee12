@@ -58,6 +58,10 @@ interface AppState {
   }
   setSearchQuery: (query: string) => void
   setFilters: (filters: any) => void
+
+  // Color Theme
+  primaryColor: string
+  setPrimaryColor: (color: string) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -101,6 +105,10 @@ export const useAppStore = create<AppState>()(
       filters: {},
       setSearchQuery: (searchQuery) => set({ searchQuery }),
       setFilters: (filters) => set({ filters }),
+
+      // Color Theme
+      primaryColor: "#3b82f6",
+      setPrimaryColor: (color) => set({ primaryColor: color }),
     }),
     {
       name: "bridge-app-storage",
@@ -108,6 +116,7 @@ export const useAppStore = create<AppState>()(
         theme: state.theme,
         language: state.language,
         currentUser: state.currentUser,
+        primaryColor: state.primaryColor,
       }),
     },
   ),

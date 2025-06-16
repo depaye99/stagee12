@@ -7,6 +7,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { email, password } = body
 
+    console.log("Login attempt for:", email)
+
     // Validation des champs requis
     if (!email || !password) {
       return NextResponse.json({ error: "Email et mot de passe requis" }, { status: 400 })
@@ -25,7 +27,7 @@ export async function POST(request: NextRequest) {
       if (authError.message.includes("Invalid login credentials")) {
         return NextResponse.json(
           {
-            error: `Identifiants invalides pour ${email}. Vérifiez votre email et mot de passe, ou créez un compte si vous n'en avez pas.`,
+            error: `Identifiants invalides. Vérifiez votre email et mot de passe.`,
           },
           { status: 401 },
         )
@@ -34,7 +36,7 @@ export async function POST(request: NextRequest) {
       if (authError.message.includes("Email not confirmed")) {
         return NextResponse.json(
           {
-            error: "Email non confirmé. Vérifiez votre boîte mail et cliquez sur le lien de confirmation.",
+            error: "Email non confirmé. Vérifiez votre boîte mail.",
           },
           { status: 401 },
         )
@@ -49,72 +51,32 @@ export async function POST(request: NextRequest) {
 
     console.log("User logged in successfully:", authData.user.email)
 
-    // Récupérer ou créer le profil utilisateur
+    // Récupérer le profil utilisateur
     let profile = null
-
     try {
       const { data: existingProfile } = await supabase.from("users").select("*").eq("id", authData.user.id).single()
       profile = existingProfile
     } catch (error) {
-      console.log("Profile not found, will create one")
+      console.log("Profile not found, creating basic profile")
     }
 
-    // Si le profil n'existe pas, le créer
+    // Si le profil n'existe pas, créer un profil de base
     if (!profile) {
-      try {
-        const newProfile = {
-          id: authData.user.id,
-          email: authData.user.email!,
-          name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-          role: authData.user.user_metadata?.role || "stagiaire",
-        }
-
-        // Ajouter les colonnes optionnelles si elles existent
-        if (authData.user.user_metadata?.phone) {
-          newProfile.phone = authData.user.user_metadata.phone
-        }
-
-        const { data: createdProfile, error: insertError } = await supabase
-          .from("users")
-          .insert([newProfile])
-          .select()
-          .single()
-
-        if (insertError) {
-          console.error("Profile creation error:", insertError)
-          // Utiliser les données de base si la création échoue
-          profile = {
-            id: authData.user.id,
-            email: authData.user.email!,
-            name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-            role: authData.user.user_metadata?.role || "stagiaire",
-          }
-        } else {
-          profile = createdProfile
-        }
-      } catch (profileError) {
-        console.error("Profile creation exception:", profileError)
-        // Utiliser les données de base si la création échoue
-        profile = {
-          id: authData.user.id,
-          email: authData.user.email!,
-          name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-          role: authData.user.user_metadata?.role || "stagiaire",
-        }
+      const newProfile = {
+        id: authData.user.id,
+        email: authData.user.email!,
+        name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
+        role: "stagiaire",
       }
-    }
 
-    // Essayer de mettre à jour la dernière connexion (ne pas échouer si ça ne marche pas)
-    try {
-      await supabase
-        .from("users")
-        .update({
-          last_login: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", authData.user.id)
-    } catch (updateError) {
-      console.warn("Failed to update last login:", updateError)
+      try {
+        const { data: createdProfile } = await supabase.from("users").insert([newProfile]).select().single()
+        profile = createdProfile
+      } catch (insertError) {
+        console.warn("Could not create profile in database:", insertError)
+        // Utiliser le profil de base même si l'insertion échoue
+        profile = newProfile
+      }
     }
 
     // Préparer les données utilisateur finales
@@ -122,10 +84,10 @@ export async function POST(request: NextRequest) {
       id: authData.user.id,
       email: authData.user.email,
       name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-      role: authData.user.user_metadata?.role || "stagiaire",
+      role: "stagiaire",
     }
 
-    console.log("Returning user data:", finalUserData)
+    console.log("Login successful, returning user data")
 
     return NextResponse.json({
       success: true,
