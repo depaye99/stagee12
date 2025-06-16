@@ -15,10 +15,10 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { authService } from "@/lib/services/auth-service"
-import { useTranslation } from "@/lib/i18n"
+import { useTranslation, languages, type Language } from "@/lib/i18n"
+import { useTheme } from "next-themes"
 import { useAppStore } from "@/lib/store"
-import { LanguageSelector } from "@/components/language-selector"
-import { ThemeToggle } from "@/components/theme-toggle"
+import { Sun, Moon, Languages } from "lucide-react"
 
 interface HeaderProps {
   user?: any
@@ -28,17 +28,22 @@ interface HeaderProps {
 export function Header({ user, showAuth = false }: HeaderProps) {
   const [notifications, setNotifications] = useState<any[]>([])
   const router = useRouter()
-  const { language, primaryColor } = useAppStore()
+  const { theme, setTheme } = useTheme()
+  const { language, setLanguage } = useAppStore()
   const { t } = useTranslation(language)
 
   useEffect(() => {
     if (user) {
+      // Charger les notifications de l'utilisateur
       loadNotifications()
     }
   }, [user])
 
   const loadNotifications = async () => {
     // TODO: Implémenter le chargement des notifications depuis Supabase
+    // const notificationsService = new NotificationsService()
+    // const userNotifications = await notificationsService.getByUserId(user.id)
+    // setNotifications(userNotifications)
   }
 
   const handleLogout = async () => {
@@ -53,13 +58,13 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "admin":
-        return t("admin")
+        return "Administrateur"
       case "rh":
-        return t("hr")
+        return "Ressources Humaines"
       case "tuteur":
-        return t("tutor")
+        return "Tuteur"
       case "stagiaire":
-        return t("intern")
+        return "Stagiaire"
       default:
         return role
     }
@@ -80,28 +85,28 @@ export function Header({ user, showAuth = false }: HeaderProps) {
     }
   }
 
+  const toggleTheme = () => {
+    setTheme(theme === "dark" ? "light" : "dark")
+  }
+
+  const changeLanguage = (newLang: Language) => {
+    setLanguage(newLang)
+  }
+
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4" style={{ borderColor: primaryColor + "20" }}>
+    <header className="bg-white border-b border-gray-200 px-6 py-4">
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
           <div className="flex items-center">
             <div className="relative mr-3">
-              <div
-                className="w-8 h-8 border-2 rounded-full flex items-center justify-center"
-                style={{ borderColor: primaryColor }}
-              >
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: primaryColor }}></div>
+              <div className="w-8 h-8 border-2 border-blue-500 rounded-full flex items-center justify-center">
+                <div className="w-4 h-4 bg-blue-500 rounded-full"></div>
               </div>
-              <div
-                className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                style={{ backgroundColor: primaryColor }}
-              ></div>
+              <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 rounded-full"></div>
             </div>
             <div>
               <div className="font-bold text-lg text-foreground">BRIDGE</div>
-              <div className="text-sm font-medium" style={{ color: primaryColor }}>
-                Technologies
-              </div>
+              <div className="text-sm text-blue-500 font-medium">Technologies</div>
               <div className="text-xs text-muted-foreground">Solutions</div>
             </div>
           </div>
@@ -109,11 +114,7 @@ export function Header({ user, showAuth = false }: HeaderProps) {
 
         {!showAuth && (
           <nav className="hidden md:flex items-center space-x-8">
-            <Link
-              href="/"
-              className="text-foreground hover:text-blue-500 font-medium"
-              style={{ "--hover-color": primaryColor } as any}
-            >
+            <Link href="/" className="text-foreground hover:text-blue-500 font-medium">
               {t("home")}
             </Link>
             <Link href="/contacts" className="text-foreground hover:text-blue-500 font-medium">
@@ -137,20 +138,17 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   <Button variant="ghost" size="sm" className="relative">
                     <Bell className="h-5 w-5" />
                     {notifications.length > 0 && (
-                      <span
-                        className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-                        style={{ backgroundColor: primaryColor }}
-                      >
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
                         {notifications.length}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>{t("notification")}</DropdownMenuLabel>
+                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">{t("noData")}</div>
+                    <div className="p-4 text-center text-gray-500">Aucune notification</div>
                   ) : (
                     notifications.map((notification) => (
                       <DropdownMenuItem key={notification.id} className="flex flex-col items-start p-4">
@@ -183,12 +181,12 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{t("profile")}</DropdownMenuLabel>
+                  <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href={getProfileLink(user.role)} className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
-                      {t("profile")}
+                      Profil
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -200,7 +198,7 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
-                    {t("logout")}
+                    Se déconnecter
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -216,8 +214,31 @@ export function Header({ user, showAuth = false }: HeaderProps) {
             </div>
           ) : (
             <>
-              <LanguageSelector />
-              <ThemeToggle />
+              {/* Language Selector */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="icon">
+                    <Languages className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent>
+                  {Object.entries(languages).map(([code, lang]) => (
+                    <DropdownMenuItem
+                      key={code}
+                      onClick={() => changeLanguage(code as Language)}
+                      className={language === code ? "bg-accent" : ""}
+                    >
+                      <span className="mr-2">{lang.flag}</span>
+                      {lang.name}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Theme Toggle */}
+              <Button variant="outline" size="icon" onClick={toggleTheme}>
+                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+              </Button>
             </>
           )}
         </div>
