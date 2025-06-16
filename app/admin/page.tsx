@@ -2,22 +2,14 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Header } from "@/components/layout/header"
-import { Users, FileText, Calendar, TrendingUp, Settings, UserPlus } from "lucide-react"
+import { Card } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Users, FileText, Settings } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-
-interface DashboardStats {
-  users_total: number
-  stagiaires_total: number
-  demandes_total: number
-  demandes_en_attente: number
-}
 
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null)
-  const [stats, setStats] = useState<DashboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -27,47 +19,23 @@ export default function AdminDashboard() {
       const {
         data: { session },
       } = await supabase.auth.getSession()
-
       if (!session) {
         router.push("/auth/login")
         return
       }
 
-      // Récupérer le profil utilisateur
       const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-
       if (!profile || profile.role !== "admin") {
         router.push("/auth/login")
         return
       }
 
       setUser(profile)
-      await loadStats()
       setLoading(false)
     }
 
     checkAuth()
   }, [router, supabase])
-
-  const loadStats = async () => {
-    try {
-      const [usersCount, stagiairesCount, demandesCount, demandesEnAttenteCount] = await Promise.all([
-        supabase.from("users").select("id", { count: "exact", head: true }),
-        supabase.from("stagiaires").select("id", { count: "exact", head: true }),
-        supabase.from("demandes").select("id", { count: "exact", head: true }),
-        supabase.from("demandes").select("id", { count: "exact", head: true }).eq("statut", "en_attente"),
-      ])
-
-      setStats({
-        users_total: usersCount.count || 0,
-        stagiaires_total: stagiairesCount.count || 0,
-        demandes_total: demandesCount.count || 0,
-        demandes_en_attente: demandesEnAttenteCount.count || 0,
-      })
-    } catch (error) {
-      console.error("Erreur lors du chargement des statistiques:", error)
-    }
-  }
 
   if (loading) {
     return (
@@ -79,129 +47,163 @@ export default function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} />
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <img src="/bridge-logo.png" alt="Bridge Technologies" className="h-8 w-auto" />
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-700">Accueil</span>
+              <div className="bg-black text-white px-3 py-1 rounded text-sm">A</div>
+              <button className="text-gray-400">☀️</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Tableau de bord Administrateur</h1>
-          <p className="text-gray-600">Bienvenue, {user?.name}</p>
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-white min-h-screen border-r border-gray-200">
+          <div className="p-4">
+            <div className="mb-6">
+              <h2 className="font-semibold text-gray-900">Administrateur</h2>
+            </div>
+            <nav className="space-y-2">
+              <div className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 cursor-pointer">
+                <Users className="h-4 w-4" />
+                <span>Gestion des membres</span>
+              </div>
+              <div className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 cursor-pointer">
+                <Settings className="h-4 w-4" />
+                <span>Mon profil</span>
+              </div>
+            </nav>
+          </div>
         </div>
 
-        {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.users_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Total des utilisateurs</p>
-            </CardContent>
-          </Card>
+        {/* Main Content */}
+        <div className="flex-1 p-8">
+          <div className="mb-8">
+            <div className="flex items-center space-x-4 mb-2">
+              <Avatar className="h-16 w-16">
+                <AvatarImage src="/placeholder-user.jpg" />
+                <AvatarFallback>AD</AvatarFallback>
+              </Avatar>
+              <div>
+                <h1 className="text-2xl font-bold">Bonjour, --ADMINISTRATEUR--</h1>
+                <p className="text-gray-600">Ceci est votre tableau de bord qui recence l'ensemble de vos activités</p>
+              </div>
+            </div>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Stagiaires</CardTitle>
-              <UserPlus className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.stagiaires_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Stagiaires actifs</p>
-            </CardContent>
-          </Card>
+          {/* Statistics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Stagiaires actifs</span>
+                <Users className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="text-2xl font-bold mb-1">2</div>
+              <div className="text-xs text-gray-500">Stagiaire actuellement en entreprise</div>
+            </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Demandes</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.demandes_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Total des demandes</p>
-            </CardContent>
-          </Card>
+            <Card className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium">Nombre de demande en cours</span>
+                <FileText className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="text-2xl font-bold mb-1">5</div>
+              <div className="text-xs text-gray-500">Demande en attente de réponse</div>
+            </Card>
+          </div>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En attente</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.demandes_en_attente || 0}</div>
-              <p className="text-xs text-muted-foreground">Demandes en attente</p>
-            </CardContent>
-          </Card>
+          {/* Suivi des demandes */}
+          <div className="mb-8">
+            <h2 className="text-xl font-semibold mb-4">Suivis des demandes</h2>
+
+            <Card>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="border-b border-gray-200">
+                    <tr>
+                      <th className="text-left p-4 font-medium">Date</th>
+                      <th className="text-left p-4 font-medium">Type</th>
+                      <th className="text-left p-4 font-medium">Statut f.</th>
+                      <th className="text-left p-4 font-medium">Détails</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-gray-100">
+                      <td className="p-4">06/05/2025</td>
+                      <td className="p-4">Demande de congé</td>
+                      <td className="p-4">
+                        <Badge className="bg-orange-100 text-orange-800 flex items-center">
+                          En attente <span className="ml-1">▼</span>
+                        </Badge>
+                      </td>
+                      <td className="p-4">2 jours - 15-16 mai 2025</td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="p-4">06/05/2025</td>
+                      <td className="p-4">Demande de congé</td>
+                      <td className="p-4">
+                        <Badge className="bg-orange-100 text-orange-800 flex items-center">
+                          En attente <span className="ml-1">▼</span>
+                        </Badge>
+                      </td>
+                      <td className="p-4">2 jours - 15-16 mai 2025</td>
+                    </tr>
+                    <tr className="border-b border-gray-100">
+                      <td className="p-4">06/05/2025</td>
+                      <td className="p-4">Demande de congé</td>
+                      <td className="p-4">
+                        <Badge className="bg-orange-100 text-orange-800 flex items-center">
+                          En attente <span className="ml-1">▼</span>
+                        </Badge>
+                      </td>
+                      <td className="p-4">2 jours - 15-16 mai 2025</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+
+          {/* Notification */}
+          <div className="mb-8">
+            <h3 className="text-lg font-medium mb-4">Notification</h3>
+            <div className="bg-yellow-100 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-800 font-medium text-center">Une nouvelle demande à été enregistré</p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        {/* Actions rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gestion des utilisateurs</CardTitle>
-              <CardDescription>Gérer les comptes utilisateurs et leurs rôles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/users")}>
-                <Users className="mr-2 h-4 w-4" />
-                Gérer les utilisateurs
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Gestion des stagiaires</CardTitle>
-              <CardDescription>Superviser tous les stagiaires et leurs stages</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/stagiaires")}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Gérer les stagiaires
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Demandes</CardTitle>
-              <CardDescription>Traiter les demandes en attente</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/demandes")}>
-                <FileText className="mr-2 h-4 w-4" />
-                Voir les demandes
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Rapports</CardTitle>
-              <CardDescription>Générer des rapports et statistiques</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/reports")}>
-                <TrendingUp className="mr-2 h-4 w-4" />
-                Voir les rapports
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Paramètres</CardTitle>
-              <CardDescription>Configuration du système</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/settings")}>
-                <Settings className="mr-2 h-4 w-4" />
-                Paramètres
-              </Button>
-            </CardContent>
-          </Card>
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <span>🎓</span>
+              <span className="text-sm text-gray-600">@BridgeTech-Solutions</span>
+              <span className="text-sm text-gray-600">Tous droits reservés</span>
+            </div>
+            <div className="flex space-x-6 text-sm text-gray-600">
+              <a href="#" className="hover:text-gray-900">
+                Condition d'utilisation
+              </a>
+              <a href="#" className="hover:text-gray-900">
+                Politique de confidentialité
+              </a>
+              <a href="#" className="hover:text-gray-900">
+                Contact
+              </a>
+            </div>
+          </div>
         </div>
-      </main>
+      </footer>
     </div>
   )
 }

@@ -2,34 +2,17 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Header } from "@/components/layout/header"
-import { User, Save, Building, Calendar } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { User, FileText } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
-import { useToast } from "@/hooks/use-toast"
 
 export default function StagiaireProfilPage() {
   const [user, setUser] = useState<any>(null)
-  const [stagiaireData, setStagiaireData] = useState<any>(null)
-  const [tuteurs, setTuteurs] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [formData, setFormData] = useState({
-    entreprise: "",
-    poste: "",
-    date_debut: "",
-    date_fin: "",
-    tuteur_id: "",
-    notes: "",
-  })
   const router = useRouter()
   const supabase = createClient()
-  const { toast } = useToast()
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -42,82 +25,17 @@ export default function StagiaireProfilPage() {
       }
 
       const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-      if (!profile || profile.role !== "stagiaire") {
+      if (!profile) {
         router.push("/auth/login")
         return
       }
 
       setUser(profile)
-      await loadTuteurs()
-      await loadStagiaireData(profile.id)
       setLoading(false)
     }
 
     checkAuth()
   }, [router, supabase])
-
-  const loadTuteurs = async () => {
-    try {
-      const { data, error } = await supabase.from("users").select("id, name").eq("role", "tuteur").eq("is_active", true)
-
-      if (error) throw error
-      setTuteurs(data || [])
-    } catch (error) {
-      console.error("Erreur lors du chargement des tuteurs:", error)
-    }
-  }
-
-  const loadStagiaireData = async (userId: string) => {
-    try {
-      const { data, error } = await supabase.from("stagiaires").select("*").eq("user_id", userId).single()
-
-      if (data) {
-        setStagiaireData(data)
-        setFormData({
-          entreprise: data.entreprise || "",
-          poste: data.poste || "",
-          date_debut: data.date_debut || "",
-          date_fin: data.date_fin || "",
-          tuteur_id: data.tuteur_id || "",
-          notes: data.notes || "",
-        })
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement des données stagiaire:", error)
-    }
-  }
-
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      if (stagiaireData) {
-        // Mettre à jour
-        const { error } = await supabase.from("stagiaires").update(formData).eq("id", stagiaireData.id)
-        if (error) throw error
-      } else {
-        // Créer
-        const { error } = await supabase.from("stagiaires").insert([{ ...formData, user_id: user.id, statut: "actif" }])
-        if (error) throw error
-      }
-
-      toast({
-        title: "Succès",
-        description: "Profil de stagiaire mis à jour avec succès",
-      })
-
-      // Recharger les données
-      await loadStagiaireData(user.id)
-    } catch (error) {
-      console.error("Erreur lors de la sauvegarde:", error)
-      toast({
-        title: "Erreur",
-        description: "Impossible de sauvegarder le profil",
-        variant: "destructive",
-      })
-    } finally {
-      setSaving(false)
-    }
-  }
 
   if (loading) {
     return (
@@ -129,111 +47,124 @@ export default function StagiaireProfilPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} />
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center">
+              <img src="/bridge-logo.png" alt="Bridge Technologies" className="h-8 w-auto" />
+            </div>
+            <div className="flex items-center space-x-4">
+              <span className="text-gray-700">Accueil</span>
+              <div className="bg-black text-white px-3 py-1 rounded text-sm">A</div>
+              <button className="text-gray-400">☀️</button>
+            </div>
+          </div>
+        </div>
+      </header>
 
-      <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Compléter mon profil de stagiaire</h1>
-          <p className="text-gray-600">Renseignez vos informations de stage</p>
+      <div className="flex">
+        {/* Sidebar */}
+        <div className="w-64 bg-white min-h-screen border-r border-gray-200">
+          <div className="p-4">
+            <div className="flex items-center space-x-2 mb-6">
+              <User className="h-5 w-5" />
+              <span className="font-medium">Stagiaire</span>
+            </div>
+            <nav className="space-y-2">
+              <div className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 cursor-pointer">
+                <User className="h-4 w-4" />
+                <span>Mon profil</span>
+              </div>
+              <div className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 cursor-pointer">
+                <FileText className="h-4 w-4" />
+                <span>Mes documents</span>
+              </div>
+            </nav>
+          </div>
+
+          <div className="absolute bottom-4 left-4">
+            <Button variant="outline" className="flex items-center space-x-2">
+              <span>🚪</span>
+              <span>Log Out</span>
+            </Button>
+          </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Informations de stage
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="entreprise">
-                  <Building className="h-4 w-4 inline mr-2" />
-                  Entreprise *
-                </Label>
-                <Input
-                  id="entreprise"
-                  value={formData.entreprise}
-                  onChange={(e) => setFormData({ ...formData, entreprise: e.target.value })}
-                  placeholder="Nom de l'entreprise"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="poste">Poste *</Label>
-                <Input
-                  id="poste"
-                  value={formData.poste}
-                  onChange={(e) => setFormData({ ...formData, poste: e.target.value })}
-                  placeholder="Intitulé du poste"
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="date_debut">
-                  <Calendar className="h-4 w-4 inline mr-2" />
-                  Date de début *
-                </Label>
-                <Input
-                  id="date_debut"
-                  type="date"
-                  value={formData.date_debut}
-                  onChange={(e) => setFormData({ ...formData, date_debut: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="date_fin">Date de fin *</Label>
-                <Input
-                  id="date_fin"
-                  type="date"
-                  value={formData.date_fin}
-                  onChange={(e) => setFormData({ ...formData, date_fin: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="tuteur_id">Tuteur</Label>
-                <Select
-                  value={formData.tuteur_id}
-                  onValueChange={(value) => setFormData({ ...formData, tuteur_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un tuteur" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {tuteurs.map((tuteur) => (
-                      <SelectItem key={tuteur.id} value={tuteur.id}>
-                        {tuteur.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="md:col-span-2">
-                <Label htmlFor="notes">Notes / Objectifs</Label>
-                <Textarea
-                  id="notes"
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Objectifs du stage, missions principales..."
-                  rows={4}
-                />
-              </div>
-            </div>
+        {/* Main Content */}
+        <div className="flex-1 p-8">
+          <div className="mb-8">
+            <h1 className="text-2xl font-bold mb-2">Profile</h1>
+            <p className="text-gray-600">Ceci est votre tableau de bord qui recence l'ensemble de vos activités</p>
+          </div>
 
-            <div className="flex gap-4 pt-4">
-              <Button onClick={handleSave} disabled={saving}>
-                <Save className="h-4 w-4 mr-2" />
-                {saving ? "Enregistrement..." : "Enregistrer"}
-              </Button>
-              <Button variant="outline" onClick={() => router.push("/stagiaire")}>
-                Retour au tableau de bord
-              </Button>
+          {/* Profile Card */}
+          <Card className="max-w-4xl">
+            <CardContent className="p-8">
+              <div className="flex items-start space-x-8">
+                <div className="flex-shrink-0">
+                  <Avatar className="h-32 w-32">
+                    <AvatarImage src="/placeholder-user.jpg" />
+                    <AvatarFallback className="text-2xl">NS</AvatarFallback>
+                  </Avatar>
+                </div>
+
+                <div className="flex-1 grid grid-cols-2 gap-8">
+                  <div>
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-gray-600">Nom :</label>
+                      <p className="text-lg">Nom du stagiaire</p>
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-gray-600">Email :</label>
+                      <p className="text-lg">Mail du stagiaire</p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-gray-600">Adresse :</label>
+                      <p className="text-lg">Lycée de makepe</p>
+                    </div>
+                    <div className="mb-4">
+                      <label className="text-sm font-medium text-gray-600">Téléphone :</label>
+                      <p className="text-lg">+237- 652347895</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-center mt-8">
+                <Button className="bg-black text-white px-8 py-2 rounded">Modifier</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 mt-auto">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center space-x-2">
+              <span>🎓</span>
+              <span className="text-sm text-gray-600">@BridgeTech-Solutions</span>
+              <span className="text-sm text-gray-600">Tous droits reservés</span>
             </div>
-          </CardContent>
-        </Card>
-      </main>
+            <div className="flex space-x-6 text-sm text-gray-600">
+              <a href="#" className="hover:text-gray-900">
+                Condition d'utilisation
+              </a>
+              <a href="#" className="hover:text-gray-900">
+                Politique de confidentialité
+              </a>
+              <a href="#" className="hover:text-gray-900">
+                Contact
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
