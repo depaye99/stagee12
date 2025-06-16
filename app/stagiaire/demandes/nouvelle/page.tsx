@@ -1,35 +1,37 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Textarea } from "@/components/ui/textarea"
+import { Header } from "@/components/layout/header"
+import { ArrowLeft, Save } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Upload } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Alert, AlertDescription } from "@/components/ui/alert"
+
+interface DemandeFormData {
+  type: string
+  titre: string
+  description: string
+}
 
 export default function NouvelleDemandePage() {
   const [user, setUser] = useState<any>(null)
-  const [demandType, setDemandType] = useState("stage_professionnel")
-  const [documents, setDocuments] = useState({
-    cv: null,
-    certificat_scolarite: null,
-    lettre_motivation: null,
-    lettre_recommandation: null,
-    dernier_diplome: null,
-    document_supplementaire: null,
-    piece_identite: null,
-    plan_localisation: null,
-  })
-  const [periode, setPeriode] = useState({
-    jours: "",
-    mois: "",
-    annee: "",
-    duree_mois: "6 mois",
+  const [stagiaireInfo, setStagiaireInfo] = useState<any>(null)
+  const [formData, setFormData] = useState<DemandeFormData>({
+    type: "",
+    titre: "",
+    description: "",
   })
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
@@ -51,291 +53,175 @@ export default function NouvelleDemandePage() {
       }
 
       setUser(profile)
+
+      // Récupérer les informations du stagiaire
+      const { data: stagiaire } = await supabase.from("stagiaires").select("*").eq("user_id", profile.id).single()
+
+      setStagiaireInfo(stagiaire)
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const handleFileUpload = (documentType: string, file: File) => {
-    setDocuments((prev) => ({
-      ...prev,
-      [documentType]: file,
-    }))
+  const handleInputChange = (field: keyof DemandeFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }))
+    setError("")
   }
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setLoading(true)
+    setError("")
+
+    // Validation
+    if (!formData.type || !formData.titre) {
+      setError("Veuillez remplir tous les champs obligatoires")
+      setLoading(false)
+      return
+    }
+
+    if (!stagiaireInfo) {
+      setError("Profil de stagiaire non trouvé")
+      setLoading(false)
+      return
+    }
+
     try {
-      // Logique de soumission
+      const { data, error } = await supabase
+        .from("demandes")
+        .insert([
+          {
+            stagiaire_id: stagiaireInfo.id,
+            tuteur_id: stagiaireInfo.tuteur_id,
+            type: formData.type,
+            titre: formData.titre,
+            description: formData.description,
+            statut: "en_attente",
+          },
+        ])
+        .select()
+        .single()
+
+      if (error) throw error
+
       toast({
         title: "Succès",
-        description: "Demande soumise avec succès",
+        description: "Demande créée avec succès",
       })
+
       router.push("/stagiaire/demandes")
     } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Erreur lors de la soumission",
-        variant: "destructive",
-      })
+      console.error("Erreur lors de la création:", error)
+      setError(error instanceof Error ? error.message : "Erreur lors de la création")
     } finally {
       setLoading(false)
     }
   }
 
+  if (!stagiaireInfo) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <Header user={user} />
+        <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+          <Card>
+            <CardContent className="p-6 text-center">
+              <p className="text-gray-600">
+                Vous devez d'abord compléter votre profil de stagiaire pour pouvoir faire des demandes.
+              </p>
+              <Button className="mt-4" onClick={() => router.push("/stagiaire/profil")}>
+                Compléter mon profil
+              </Button>
+            </CardContent>
+          </Card>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="text-sm text-gray-600">FORMULAIRE DE DEMANDE PROFESSIONNEL</div>
-          </div>
+      <Header user={user} />
+
+      <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <Button variant="outline" onClick={() => router.back()} className="mb-4">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Retour
+          </Button>
+          <h1 className="text-3xl font-bold text-gray-900">Nouvelle demande</h1>
+          <p className="text-gray-600">Créer une nouvelle demande</p>
         </div>
-      </header>
 
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white rounded-3xl p-8 shadow-sm border">
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="text-3xl font-bold mb-2">
-              <span className="text-black">BRIDGE</span>
-              <div className="text-lg text-blue-500 -mt-1">Technologies</div>
-              <div className="text-sm text-blue-400 -mt-1">Solutions</div>
-            </div>
-          </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Informations de la demande</CardTitle>
+            <CardDescription>Remplissez les informations pour créer votre demande</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
 
-          <h1 className="text-2xl font-bold text-center mb-8">FORMULAIRE DE DEMANDE DE STAGE</h1>
-
-          {/* Type de demande */}
-          <div className="flex items-center justify-center mb-12">
-            <Label className="text-lg font-medium mr-4">Types de demande</Label>
-            <Select value={demandType} onValueChange={setDemandType}>
-              <SelectTrigger className="w-64 h-12 rounded-full border-2">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="stage_professionnel">Stage professionnel</SelectItem>
-                <SelectItem value="stage_academique">Stage académique</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Documents Section */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
-            {/* CV */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">CV</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("cv", e.target.files[0])}
-                  className="hidden"
-                  id="cv-upload"
-                />
-                <label htmlFor="cv-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre cv ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
+              <div className="space-y-2">
+                <Label htmlFor="type">Type de demande *</Label>
+                <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner le type de demande" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="stage_academique">Stage académique</SelectItem>
+                    <SelectItem value="stage_professionnel">Stage professionnel</SelectItem>
+                    <SelectItem value="conge">Demande de congé</SelectItem>
+                    <SelectItem value="prolongation">Prolongation de stage</SelectItem>
+                    <SelectItem value="attestation">Demande d'attestation</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
 
-            {/* Certificat de scolarité */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Certificat de scolarité</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("certificat_scolarite", e.target.files[0])}
-                  className="hidden"
-                  id="certificat-upload"
+              <div className="space-y-2">
+                <Label htmlFor="titre">Titre de la demande *</Label>
+                <Input
+                  id="titre"
+                  value={formData.titre}
+                  onChange={(e) => handleInputChange("titre", e.target.value)}
+                  placeholder="Ex: Demande de validation de stage"
+                  required
                 />
-                <label htmlFor="certificat-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre Lettre de motivation ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
               </div>
-            </div>
 
-            {/* Lettre de motivation */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Lettre de motivation</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("lettre_motivation", e.target.files[0])}
-                  className="hidden"
-                  id="motivation-upload"
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={formData.description}
+                  onChange={(e) => handleInputChange("description", e.target.value)}
+                  placeholder="Décrivez votre demande en détail..."
+                  rows={6}
                 />
-                <label htmlFor="motivation-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre Lettre de motivation ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
               </div>
-            </div>
 
-            {/* Lettre de recommandation */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Lettre de recommandation</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("lettre_recommandation", e.target.files[0])}
-                  className="hidden"
-                  id="recommandation-upload"
-                />
-                <label htmlFor="recommandation-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre Lettre de recommandation ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
+              <div className="flex justify-end space-x-4">
+                <Button type="button" variant="outline" onClick={() => router.back()}>
+                  Annuler
+                </Button>
+                <Button type="submit" disabled={loading}>
+                  {loading ? (
+                    "Création..."
+                  ) : (
+                    <>
+                      <Save className="mr-2 h-4 w-4" />
+                      Créer la demande
+                    </>
+                  )}
+                </Button>
               </div>
-            </div>
-
-            {/* Dernier diplôme */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Dernier diplôme</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("dernier_diplome", e.target.files[0])}
-                  className="hidden"
-                  id="diplome-upload"
-                />
-                <label htmlFor="diplome-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposez votre diplôme ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
-              </div>
-            </div>
-
-            {/* Document supplémentaire */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Document supplémentaire</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.doc,.docx"
-                  onChange={(e) =>
-                    e.target.files?.[0] && handleFileUpload("document_supplementaire", e.target.files[0])
-                  }
-                  className="hidden"
-                  id="supplementaire-upload"
-                />
-                <label htmlFor="supplementaire-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Facultatif</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
-              </div>
-            </div>
-
-            {/* Pièce d'identité */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Pièce d'identité</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("piece_identite", e.target.files[0])}
-                  className="hidden"
-                  id="identite-upload"
-                />
-                <label htmlFor="identite-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre ici</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
-              </div>
-            </div>
-
-            {/* Plan de localisation */}
-            <div>
-              <Label className="text-lg font-semibold mb-4 block">Plan de localisation</Label>
-              <div className="border-2 border-dashed border-gray-300 rounded-2xl p-6 text-center hover:border-blue-400 transition-colors">
-                <input
-                  type="file"
-                  accept=".pdf,.jpg,.jpeg,.png"
-                  onChange={(e) => e.target.files?.[0] && handleFileUpload("plan_localisation", e.target.files[0])}
-                  className="hidden"
-                  id="plan-upload"
-                />
-                <label htmlFor="plan-upload" className="cursor-pointer">
-                  <div className="text-gray-500 mb-2">Déposer votre plan de location</div>
-                  <Upload className="mx-auto h-8 w-8 text-gray-400" />
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Période */}
-          <div className="flex items-center justify-center space-x-4 mb-12">
-            <Select value={periode.jours} onValueChange={(value) => setPeriode({ ...periode, jours: value })}>
-              <SelectTrigger className="w-32 h-12 rounded-full">
-                <SelectValue placeholder="Jours" />
-              </SelectTrigger>
-              <SelectContent>
-                {Array.from({ length: 31 }, (_, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)}>
-                    {i + 1}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <Select value={periode.mois} onValueChange={(value) => setPeriode({ ...periode, mois: value })}>
-              <SelectTrigger className="w-32 h-12 rounded-full">
-                <SelectValue placeholder="Mois" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="1">Janvier</SelectItem>
-                <SelectItem value="2">Février</SelectItem>
-                <SelectItem value="3">Mars</SelectItem>
-                <SelectItem value="4">Avril</SelectItem>
-                <SelectItem value="5">Mai</SelectItem>
-                <SelectItem value="6">Juin</SelectItem>
-                <SelectItem value="7">Juillet</SelectItem>
-                <SelectItem value="8">Août</SelectItem>
-                <SelectItem value="9">Septembre</SelectItem>
-                <SelectItem value="10">Octobre</SelectItem>
-                <SelectItem value="11">Novembre</SelectItem>
-                <SelectItem value="12">Décembre</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select value={periode.annee} onValueChange={(value) => setPeriode({ ...periode, annee: value })}>
-              <SelectTrigger className="w-32 h-12 rounded-full">
-                <SelectValue placeholder="Année" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="2024">2024</SelectItem>
-                <SelectItem value="2025">2025</SelectItem>
-                <SelectItem value="2026">2026</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Input
-              value={periode.duree_mois}
-              onChange={(e) => setPeriode({ ...periode, duree_mois: e.target.value })}
-              className="w-32 h-12 rounded-full text-center"
-              placeholder="6 mois"
-            />
-          </div>
-
-          {/* Submit Button */}
-          <div className="text-center">
-            <Button
-              onClick={handleSubmit}
-              disabled={loading}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-3 rounded-full text-lg"
-            >
-              {loading ? "Envoi..." : "Envoyer"}
-            </Button>
-          </div>
-        </div>
-      </div>
+            </form>
+          </CardContent>
+        </Card>
+      </main>
     </div>
   )
 }

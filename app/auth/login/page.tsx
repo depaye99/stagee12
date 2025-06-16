@@ -7,10 +7,10 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Loader2 } from "lucide-react"
+import { Eye, EyeOff, Loader2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import Image from "next/image"
 
 interface LoginFormData {
   email: string
@@ -22,17 +22,30 @@ function LoginForm() {
     email: "",
     password: "",
   })
+  const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const redirectTo = searchParams.get("redirectTo")
+  const redirectTo = searchParams.get('redirectTo')
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
+
+    // Vérifier la configuration Supabase côté client
+    if (typeof window !== 'undefined') {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseKey) {
+        setError("Configuration Supabase manquante. Vérifiez vos variables d'environnement.")
+        setIsLoading(false)
+        return
+      }
+    }
 
     try {
       const response = await fetch("/api/auth/login", {
@@ -54,10 +67,14 @@ function LoginForm() {
         description: "Redirection en cours...",
       })
 
-      if (redirectTo && redirectTo !== "/auth/login" && redirectTo !== "/auth/register") {
+      // Redirection immédiate après succès
+      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register') {
+        console.log("Redirecting to:", redirectTo)
         window.location.href = redirectTo
       } else {
         const userRole = data.user?.role || "stagiaire"
+        console.log("User role for redirection:", userRole)
+        
         let targetPath = "/stagiaire"
         switch (userRole) {
           case "admin":
@@ -70,10 +87,13 @@ function LoginForm() {
             targetPath = "/tuteur"
             break
         }
+        
+        console.log("Redirecting to:", targetPath)
         window.location.href = targetPath
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur de connexion"
+      console.error("Login error:", error)
       setError(errorMessage)
       toast({
         title: "Erreur de connexion",
@@ -94,168 +114,98 @@ function LoginForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <div className="flex-shrink-0">
-                <div className="text-2xl font-bold">
-                  <span className="text-black">BRIDGE</span>
-                  <div className="text-sm text-blue-500 -mt-1">Technologies</div>
-                  <div className="text-xs text-blue-400 -mt-1">Solutions</div>
-                </div>
-              </div>
-            </div>
-            <nav className="hidden md:block">
-              <div className="ml-10 flex items-baseline space-x-8">
-                <Link href="/" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium">
-                  Accueil
-                </Link>
-                <Link href="/contacts" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium">
-                  Contacts
-                </Link>
-                <Link href="/entreprise" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium">
-                  L'entreprise
-                </Link>
-                <Link href="/services" className="text-gray-900 hover:text-blue-600 px-3 py-2 text-sm font-medium">
-                  Services
-                </Link>
-              </div>
-            </nav>
-            <div className="flex items-center space-x-4">
-              <Button variant="outline" size="sm">
-                <span className="text-white bg-black px-2 py-1 rounded text-xs">A</span>
-                <span className="ml-1">Fr</span>
-              </Button>
-              <Button variant="ghost" size="sm">
-                ☀️
+    <Card className="w-full max-w-md">
+      <CardHeader className="space-y-1">
+        <CardTitle className="text-2xl font-bold text-center">Connexion</CardTitle>
+        <CardDescription className="text-center">Connectez-vous à votre compte</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              placeholder="votre@email.com"
+              required
+              disabled={isLoading}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="password">Mot de passe</Label>
+            <div className="relative">
+              <Input
+                id="password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                value={formData.password}
+                onChange={handleInputChange}
+                placeholder="Votre mot de passe"
+                required
+                disabled={isLoading}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                onClick={() => setShowPassword(!showPassword)}
+                disabled={isLoading}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
           </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Connexion...
+              </>
+            ) : (
+              "Se connecter"
+            )}
+          </Button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <p className="text-sm text-gray-600">
+            Pas encore de compte ?{" "}
+            <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
+              S'inscrire
+            </Link>
+          </p>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex min-h-[calc(100vh-64px)]">
-        {/* Left Side - Image */}
-        <div className="hidden lg:block lg:w-1/2 relative">
-          <Image src="/laptop-bg.jpg" alt="Workspace" fill className="object-cover" />
-        </div>
-
-        {/* Right Side - Form */}
-        <div className="w-full lg:w-1/2 flex items-center justify-center p-8">
-          <div className="w-full max-w-md space-y-8">
-            <div className="text-center">
-              <h2 className="text-3xl font-bold text-gray-900">Connexion à votre compte Bridge</h2>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
-
-              <div>
-                <Label htmlFor="email" className="text-gray-700">
-                  Email
-                </Label>
-                <Input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={handleInputChange}
-                  className="mt-1 h-12"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="password" className="text-gray-700">
-                  Mot de passe
-                </Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  className="mt-1 h-12"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
-
-              <Button type="submit" className="w-full h-12 bg-black text-white hover:bg-gray-800" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Connexion...
-                  </>
-                ) : (
-                  "Se connecter"
-                )}
-              </Button>
-
-              <div className="text-center">
-                <div className="text-gray-500 mb-4">ou</div>
-                <p className="text-sm text-gray-600">
-                  Vous n'avez pas de compte?{" "}
-                  <Link href="/auth/register" className="text-blue-600 hover:text-blue-500 font-medium">
-                    S'inscrire
-                  </Link>
-                </p>
-              </div>
-
-              <div className="text-xs text-gray-500 text-center">
-                En vous connectant vous acceptez nos{" "}
-                <Link href="/conditions" className="underline">
-                  politiques de confidentialité
-                </Link>{" "}
-                et nos{" "}
-                <Link href="/conditions" className="underline">
-                  conditions d'utilisation
-                </Link>
-              </div>
-            </form>
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="bg-white border-t">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex justify-between items-center text-sm">
-            <div className="flex items-center">
-              <span className="font-medium">🎓 @BridgeTech-Solutions</span>
-              <span className="ml-4 text-gray-500">Tous droits réservés</span>
-            </div>
-            <div className="flex space-x-6 text-gray-500">
-              <Link href="/conditions">Condition d'utilisation</Link>
-              <Link href="/confidentialite">Politique de confidentialité</Link>
-              <Link href="/contact">Contact</Link>
-            </div>
-          </div>
-        </div>
-      </footer>
-    </div>
+      </CardContent>
+    </Card>
   )
 }
 
 export default function LoginPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen flex items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin" />
-        </div>
-      }
-    >
-      <LoginForm />
-    </Suspense>
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <Suspense fallback={
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          </CardContent>
+        </Card>
+      }>
+        <LoginForm />
+      </Suspense>
+    </div>
   )
 }
