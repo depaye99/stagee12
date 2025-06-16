@@ -62,70 +62,65 @@ export async function middleware(request: NextRequest) {
     })
 
     // Routes publiques qui ne nécessitent pas d'authentification
-    const publicRoutes = [
-      "/",
-      "/auth/login",
-      "/auth/register",
-      "/api/auth/login",
-      "/api/auth/register",
-      "/api/auth/logout",
-    ]
-
+    const publicRoutes = ["/auth/login", "/auth/register", "/api/auth", "/", "/api"]
     const isPublicRoute = publicRoutes.some(
-      (route) =>
-        request.nextUrl.pathname === route ||
-        request.nextUrl.pathname.startsWith("/api/") ||
-        request.nextUrl.pathname.startsWith("/_next/") ||
-        request.nextUrl.pathname.startsWith("/favicon"),
+      (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + "/"),
     )
 
-    // Pour les routes API et assets, on laisse toujours passer
-    if (
-      request.nextUrl.pathname.startsWith("/api/") ||
-      request.nextUrl.pathname.startsWith("/_next/") ||
-      request.nextUrl.pathname.startsWith("/favicon")
-    ) {
+    // Pour les routes API, on laisse passer
+    if (request.nextUrl.pathname.startsWith("/api/")) {
       return response
     }
 
-    // Essayer de récupérer l'utilisateur (sans faire d'erreur si ça échoue)
-    let user = null
-    try {
-      const {
-        data: { user: authUser },
-      } = await supabase.auth.getUser()
-      user = authUser
-    } catch (error) {
-      console.warn("Could not get user in middleware:", error)
+    // Rafraîchir la session si nécessaire
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError) {
+      console.warn("Middleware user error:", userError)
     }
 
     // Si pas d'utilisateur et route privée, rediriger vers login
     if (!user && !isPublicRoute) {
+      console.log("No user found, redirecting to login from:", request.nextUrl.pathname)
       const loginUrl = new URL("/auth/login", request.url)
+      // Inclure les paramètres de requête existants
       const fullPath = request.nextUrl.pathname + request.nextUrl.search
-      if (fullPath !== "/auth/login") {
-        loginUrl.searchParams.set("redirectTo", fullPath)
-      }
+      loginUrl.searchParams.set("redirectTo", fullPath)
       return NextResponse.redirect(loginUrl)
     }
 
-    // Si utilisateur connecté et sur page de login/register, rediriger vers dashboard
+    // Si utilisateur connecté et sur page de login, rediriger vers dashboard
     if (user && (request.nextUrl.pathname === "/auth/login" || request.nextUrl.pathname === "/auth/register")) {
-      // Vérifier s'il y a un paramètre redirectTo valide
-      const redirectTo = request.nextUrl.searchParams.get("redirectTo")
-
-      if (redirectTo && redirectTo !== "/auth/login" && redirectTo !== "/auth/register" && redirectTo.startsWith("/")) {
+      // Vérifier s'il y a un paramètre redirectTo
+      const redirectTo = request.nextUrl.searchParams.get('redirectTo')
+      
+      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register') {
+        console.log("User already logged in, redirecting to requested page:", redirectTo)
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Redirection par défaut basée sur le rôle
-      return NextResponse.redirect(new URL("/stagiaire", request.url))
+      // Sinon, redirection basée sur le rôle
+      let userRole = "stagiaire"
+      try {
+        const { data: userData } = await supabase.from("users").select("role").eq("id", user.id).single()
+        userRole = userData?.role || user.user_metadata?.role || "stagiaire"
+      } catch (error) {
+        console.warn("Could not fetch user role from database:", error)
+        userRole = user.user_metadata?.role || "stagiaire"
+      }
+
+      console.log("User already logged in, redirecting to dashboard:", userRole)
+      const dashboardRoute =
+        userRole === "admin" ? "/admin" : userRole === "rh" ? "/rh" : userRole === "tuteur" ? "/tuteur" : "/stagiaire"
+      return NextResponse.redirect(new URL(dashboardRoute, request.url))
     }
 
     return response
   } catch (error) {
     console.error("Middleware error:", error)
-    // En cas d'erreur, laisser passer pour éviter de bloquer l'app
     return response
   }
 }
