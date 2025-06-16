@@ -4,7 +4,7 @@ import type { UserRole } from "@/lib/supabase/database.types"
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
     const body = await request.json()
     const { email, password, nom, prenom, telephone, role } = body
 
@@ -47,29 +47,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer le profil utilisateur dans notre table users
-    try {
-      const userProfile = {
+    const { error: profileError } = await supabase.from("users").insert([
+      {
         id: authData.user.id,
         email: authData.user.email!,
         name: `${prenom} ${nom}`,
         role: (role as UserRole) || "stagiaire",
+        phone: telephone || null,
+        is_active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      }
+      },
+    ])
 
-      // Ajouter les colonnes optionnelles seulement si elles existent
-      if (telephone) {
-        userProfile.phone = telephone
-      }
-
-      const { error: profileError } = await supabase.from("users").insert([userProfile])
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
-        // Ne pas échouer si le profil n'est pas créé
-      }
-    } catch (profileError) {
-      console.error("Profile creation exception:", profileError)
+    if (profileError) {
+      console.error("Profile creation error:", profileError)
       // Ne pas échouer si le profil n'est pas créé
     }
 
@@ -88,12 +80,6 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Registration error:", error)
-    return NextResponse.json(
-      {
-        error: "Erreur serveur lors de l'inscription",
-        details: error instanceof Error ? error.message : "Erreur inconnue",
-      },
-      { status: 500 },
-    )
+    return NextResponse.json({ error: "Erreur serveur lors de l'inscription" }, { status: 500 })
   }
 }

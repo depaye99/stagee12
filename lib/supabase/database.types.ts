@@ -215,7 +215,7 @@ export interface Metadata {
   hasPrev: boolean
 }
 
-// Export des types Supabase générés (si disponibles)
+// Database type pour Supabase
 export interface Database {
   public: {
     Tables: {
@@ -268,6 +268,3 @@ export interface Database {
     }
   }
 }
-
-// Export nommé explicite pour Database
-export type { Database }
