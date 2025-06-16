@@ -1,72 +1,54 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Header } from "@/components/layout/header"
-import { FileText, Clock, CheckCircle, XCircle, Plus, Calendar, Mail, Phone } from "lucide-react"
+import { FileText, Clock, CheckCircle, XCircle, Plus, Calendar, Mail, Loader2 } from "lucide-react"
 import Link from "next/link"
-import { authService } from "@/lib/services/auth-service"
+import { useAuth } from "@/hooks/use-auth"
+import { createClient } from "@/lib/supabase/client"
 
 interface Demande {
   id: string
   type: string
-  status: string
+  titre: string
+  statut: string
   created_at: string
   updated_at: string
 }
 
 export default function StagiaireDashboard() {
-  const [user, setUser] = useState<any | null>(null)
+  const { user, loading: authLoading } = useAuth("stagiaire")
   const [demandes, setDemandes] = useState<Demande[]>([])
   const [loading, setLoading] = useState(true)
-  const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    loadUserData()
-  }, [])
-
-  const loadUserData = async () => {
-    try {
-      const currentUser = await authService.getCurrentUser()
-      if (!currentUser) {
-        router.push("/auth/login")
-        return
-      }
-
-      setUser(currentUser)
-      // Charger les demandes de l'utilisateur
-      await loadDemandes(currentUser.id)
-    } catch (error) {
-      console.error("Error loading user data:", error)
-      router.push("/auth/login")
-    } finally {
-      setLoading(false)
+    if (user) {
+      loadDemandes()
     }
-  }
+  }, [user])
 
-  const loadDemandes = async (userId: string) => {
+  const loadDemandes = async () => {
+    if (!user) return
+
     try {
-      // TODO: Implémenter le chargement des demandes depuis l'API
-      // const response = await fetch(`/api/stagiaire/demandes?userId=${userId}`)
-      // const data = await response.json()
-      // setDemandes(data.demandes || [])
+      const { data, error } = await supabase
+        .from("demandes")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
 
-      // Données de test
-      setDemandes([
-        {
-          id: "1",
-          type: "Stage académique",
-          status: "en_attente",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
+      if (error) throw error
+
+      setDemandes(data || [])
     } catch (error) {
       console.error("Error loading demandes:", error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -98,18 +80,22 @@ export default function StagiaireDashboard() {
     }
   }
 
-  if (loading) {
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50">
         <Header user={user} />
         <div className="flex items-center justify-center h-96">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <Loader2 className="animate-spin h-12 w-12 mx-auto text-blue-600" />
             <p className="mt-4 text-gray-600">Chargement...</p>
           </div>
         </div>
       </div>
     )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (
@@ -119,9 +105,7 @@ export default function StagiaireDashboard() {
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         {/* En-tête de bienvenue */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Bonjour, {user?.first_name || user?.name || "Stagiaire"} !
-          </h1>
+          <h1 className="text-3xl font-bold text-gray-900">Bonjour, {user.first_name || user.name || "Stagiaire"} !</h1>
           <p className="mt-2 text-gray-600">
             Bienvenue sur votre tableau de bord. Gérez vos demandes de stage et suivez leur progression.
           </p>
@@ -148,7 +132,7 @@ export default function StagiaireDashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">En attente</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "en_attente").length}
+                    {demandes.filter((d) => d.statut === "en_attente").length}
                   </p>
                 </div>
               </div>
@@ -162,7 +146,7 @@ export default function StagiaireDashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Approuvées</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "approuve").length}
+                    {demandes.filter((d) => d.statut === "approuve").length}
                   </p>
                 </div>
               </div>
@@ -176,7 +160,7 @@ export default function StagiaireDashboard() {
                 <div className="ml-4">
                   <p className="text-sm font-medium text-gray-600">Rejetées</p>
                   <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "rejete").length}
+                    {demandes.filter((d) => d.statut === "rejete").length}
                   </p>
                 </div>
               </div>
@@ -217,20 +201,27 @@ export default function StagiaireDashboard() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {demandes.map((demande) => (
+                    {demandes.slice(0, 5).map((demande) => (
                       <div key={demande.id} className="flex items-center justify-between p-4 border rounded-lg">
                         <div className="flex items-center space-x-4">
                           <FileText className="h-5 w-5 text-gray-400" />
                           <div>
-                            <p className="font-medium text-gray-900">{demande.type}</p>
+                            <p className="font-medium text-gray-900">{demande.titre}</p>
                             <p className="text-sm text-gray-500">
                               Créée le {new Date(demande.created_at).toLocaleDateString("fr-FR")}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center space-x-2">{getStatusBadge(demande.status)}</div>
+                        <div className="flex items-center space-x-2">{getStatusBadge(demande.statut)}</div>
                       </div>
                     ))}
+                    {demandes.length > 5 && (
+                      <div className="text-center pt-4">
+                        <Link href="/stagiaire/demandes">
+                          <Button variant="outline">Voir toutes les demandes</Button>
+                        </Link>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -247,14 +238,8 @@ export default function StagiaireDashboard() {
               <CardContent className="space-y-4">
                 <div className="flex items-center space-x-2">
                   <Mail className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{user?.email}</span>
+                  <span className="text-sm">{user.email}</span>
                 </div>
-                {user?.phone && (
-                  <div className="flex items-center space-x-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm">{user.phone}</span>
-                  </div>
-                )}
                 <Separator />
                 <Link href="/stagiaire/profile">
                   <Button variant="outline" className="w-full">

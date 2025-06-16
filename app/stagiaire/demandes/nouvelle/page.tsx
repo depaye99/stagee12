@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Plus } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth"
+import { Plus, ArrowLeft, Loader2 } from "lucide-react"
 
 export default function NouvelleDemandePage() {
-  const [user, setUser] = useState<any>(null)
+  const { user, loading: authLoading } = useAuth("stagiaire")
   const [demandType, setDemandType] = useState("stage_academique")
   const [documents, setDocuments] = useState({
     cv: null as File | null,
@@ -34,28 +35,6 @@ export default function NouvelleDemandePage() {
   const supabase = createClient()
   const { toast } = useToast()
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
-        router.push("/auth/login")
-        return
-      }
-
-      const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-      if (!profile) {
-        router.push("/auth/login")
-        return
-      }
-
-      setUser(profile)
-    }
-
-    checkAuth()
-  }, [router, supabase])
-
   const handleFileUpload = (documentType: string, file: File) => {
     setDocuments((prev) => ({
       ...prev,
@@ -64,18 +43,44 @@ export default function NouvelleDemandePage() {
   }
 
   const handleSubmit = async () => {
+    if (!user) return
+
     setLoading(true)
     try {
-      // Logique de soumission avec upload des fichiers
+      // Créer la demande
+      const { data: demande, error: demandeError } = await supabase
+        .from("demandes")
+        .insert({
+          user_id: user.id,
+          type: demandType,
+          titre: `Demande de ${demandType.replace("_", " ")}`,
+          description: `Demande de ${demandType.replace("_", " ")} pour une durée de ${periode.nombre_mois} mois`,
+          statut: "en_attente",
+          date_debut:
+            periode.jours && periode.mois && periode.annee
+              ? `${periode.annee}-${periode.mois.padStart(2, "0")}-${periode.jours.padStart(2, "0")}`
+              : null,
+          duree_mois: Number.parseInt(periode.nombre_mois) || 6,
+        })
+        .select()
+        .single()
+
+      if (demandeError) throw demandeError
+
+      // Upload des documents (simulation)
+      // TODO: Implémenter l'upload réel des fichiers vers Supabase Storage
+
       toast({
         title: "Succès",
-        description: "Demande soumise avec succès",
+        description: "Demande créée avec succès",
       })
+
       router.push("/stagiaire/demandes")
     } catch (error) {
+      console.error("Erreur:", error)
       toast({
         title: "Erreur",
-        description: "Erreur lors de la soumission",
+        description: "Erreur lors de la création de la demande",
         variant: "destructive",
       })
     } finally {
@@ -121,12 +126,28 @@ export default function NouvelleDemandePage() {
     </div>
   )
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    )
+  }
+
+  if (!user) {
+    return null
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header simple */}
       <header className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
+            <Button variant="ghost" onClick={() => router.push("/stagiaire")} className="flex items-center">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Retour au dashboard
+            </Button>
             <div className="text-sm text-gray-600 uppercase tracking-wide">
               FORMULAIRE DE DEMANDE {demandType === "stage_academique" ? "ACADEMIQUE" : "PROFESSIONNEL"}
             </div>
@@ -190,7 +211,7 @@ export default function NouvelleDemandePage() {
                 <FileUploadBox
                   id="certificat-upload"
                   label="Certificat de scolarité"
-                  placeholder="Déposer votre Lettre de motivation ici"
+                  placeholder="Déposer votre Certificat de scolarité ici"
                   documentType="certificat_scolarite"
                   required
                 />
@@ -249,7 +270,7 @@ export default function NouvelleDemandePage() {
                 <FileUploadBox
                   id="certificat-upload"
                   label="Certificat de scolarité"
-                  placeholder="Déposer votre Lettre de motivation ici"
+                  placeholder="Déposer votre Certificat de scolarité ici"
                   documentType="certificat_scolarite"
                   required
                 />
@@ -376,7 +397,14 @@ export default function NouvelleDemandePage() {
               disabled={loading}
               className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-full text-lg font-medium"
             >
-              {loading ? "Envoi..." : "Envoyer"}
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Envoi...
+                </>
+              ) : (
+                "Envoyer"
+              )}
             </Button>
           </div>
         </div>
