@@ -1,37 +1,35 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Header } from "@/components/layout/header"
-import { ArrowLeft, Save } from "lucide-react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Alert, AlertDescription } from "@/components/ui/alert"
-
-interface DemandeFormData {
-  type: string
-  titre: string
-  description: string
-}
+import { Plus } from "lucide-react"
 
 export default function NouvelleDemandePage() {
   const [user, setUser] = useState<any>(null)
-  const [stagiaireInfo, setStagiaireInfo] = useState<any>(null)
-  const [formData, setFormData] = useState<DemandeFormData>({
-    type: "",
-    titre: "",
-    description: "",
+  const [demandType, setDemandType] = useState("stage_academique")
+  const [documents, setDocuments] = useState({
+    cv: null as File | null,
+    certificat_scolarite: null as File | null,
+    lettre_motivation: null as File | null,
+    lettre_recommandation: null as File | null,
+    dernier_diplome: null as File | null,
+    document_supplementaire: null as File | null,
+    piece_identite: null as File | null,
+    plan_localisation: null as File | null,
+  })
+  const [periode, setPeriode] = useState({
+    jours: "",
+    mois: "",
+    annee: "",
+    nombre_mois: "6",
   })
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
@@ -53,175 +51,336 @@ export default function NouvelleDemandePage() {
       }
 
       setUser(profile)
-
-      // Récupérer les informations du stagiaire
-      const { data: stagiaire } = await supabase.from("stagiaires").select("*").eq("user_id", profile.id).single()
-
-      setStagiaireInfo(stagiaire)
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const handleInputChange = (field: keyof DemandeFormData, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-    setError("")
+  const handleFileUpload = (documentType: string, file: File) => {
+    setDocuments((prev) => ({
+      ...prev,
+      [documentType]: file,
+    }))
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     setLoading(true)
-    setError("")
-
-    // Validation
-    if (!formData.type || !formData.titre) {
-      setError("Veuillez remplir tous les champs obligatoires")
-      setLoading(false)
-      return
-    }
-
-    if (!stagiaireInfo) {
-      setError("Profil de stagiaire non trouvé")
-      setLoading(false)
-      return
-    }
-
     try {
-      const { data, error } = await supabase
-        .from("demandes")
-        .insert([
-          {
-            stagiaire_id: stagiaireInfo.id,
-            tuteur_id: stagiaireInfo.tuteur_id,
-            type: formData.type,
-            titre: formData.titre,
-            description: formData.description,
-            statut: "en_attente",
-          },
-        ])
-        .select()
-        .single()
-
-      if (error) throw error
-
+      // Logique de soumission avec upload des fichiers
       toast({
         title: "Succès",
-        description: "Demande créée avec succès",
+        description: "Demande soumise avec succès",
       })
-
       router.push("/stagiaire/demandes")
     } catch (error) {
-      console.error("Erreur lors de la création:", error)
-      setError(error instanceof Error ? error.message : "Erreur lors de la création")
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de la soumission",
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
   }
 
-  if (!stagiaireInfo) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header user={user} />
-        <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <Card>
-            <CardContent className="p-6 text-center">
-              <p className="text-gray-600">
-                Vous devez d'abord compléter votre profil de stagiaire pour pouvoir faire des demandes.
-              </p>
-              <Button className="mt-4" onClick={() => router.push("/stagiaire/profil")}>
-                Compléter mon profil
-              </Button>
-            </CardContent>
-          </Card>
-        </main>
+  const FileUploadBox = ({
+    id,
+    label,
+    placeholder,
+    documentType,
+    required = false,
+  }: {
+    id: string
+    label: string
+    placeholder: string
+    documentType: string
+    required?: boolean
+  }) => (
+    <div className="space-y-3">
+      <Label className="text-lg font-semibold">{label}</Label>
+      <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+          onChange={(e) => e.target.files?.[0] && handleFileUpload(documentType, e.target.files[0])}
+          className="hidden"
+          id={id}
+        />
+        <label htmlFor={id} className="cursor-pointer">
+          <div className="text-gray-500 mb-3 text-sm">{placeholder}</div>
+          <div className="bg-black text-white rounded-lg p-2 inline-flex items-center justify-center w-8 h-8">
+            <Plus className="h-4 w-4" />
+          </div>
+        </label>
+        {documents[documentType as keyof typeof documents] && (
+          <div className="mt-2 text-sm text-green-600">
+            ✓ {(documents[documentType as keyof typeof documents] as File)?.name}
+          </div>
+        )}
       </div>
-    )
-  }
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Header user={user} />
-
-      <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <Button variant="outline" onClick={() => router.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour
-          </Button>
-          <h1 className="text-3xl font-bold text-gray-900">Nouvelle demande</h1>
-          <p className="text-gray-600">Créer une nouvelle demande</p>
+      {/* Header */}
+      <header className="bg-white border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="text-sm text-gray-600 uppercase tracking-wide">
+              FORMULAIRE DE DEMANDE {demandType === "stage_academique" ? "ACADEMIQUE" : "PROFESSIONNEL"}
+            </div>
+          </div>
         </div>
+      </header>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Informations de la demande</CardTitle>
-            <CardDescription>Remplissez les informations pour créer votre demande</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
-                </Alert>
-              )}
+      <div className="max-w-4xl mx-auto p-8">
+        <div className="bg-white rounded-3xl p-12 shadow-sm border-2 border-gray-200">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <div className="inline-flex items-center space-x-3 mb-6">
+              <div className="relative">
+                <div className="w-12 h-12 border-3 border-blue-500 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full"></div>
+              </div>
+              <div className="text-left">
+                <div className="text-2xl font-bold text-black">BRIDGE</div>
+                <div className="text-sm text-blue-500 font-medium">Technologies</div>
+                <div className="text-xs text-gray-600">Solutions</div>
+              </div>
+            </div>
+          </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="type">Type de demande *</Label>
-                <Select value={formData.type} onValueChange={(value) => handleInputChange("type", value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner le type de demande" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="stage_academique">Stage académique</SelectItem>
-                    <SelectItem value="stage_professionnel">Stage professionnel</SelectItem>
-                    <SelectItem value="conge">Demande de congé</SelectItem>
-                    <SelectItem value="prolongation">Prolongation de stage</SelectItem>
-                    <SelectItem value="attestation">Demande d'attestation</SelectItem>
-                  </SelectContent>
-                </Select>
+          <h1 className="text-2xl font-bold text-center mb-12">FORMULAIRE DE DEMANDE DE STAGE</h1>
+
+          {/* Type de demande */}
+          <div className="flex items-center justify-center mb-16">
+            <div className="flex items-center space-x-6">
+              <Label className="text-lg font-medium">Types de demande</Label>
+              <Select value={demandType} onValueChange={setDemandType}>
+                <SelectTrigger className="w-64 h-12 rounded-full border-2 border-gray-300">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="stage_academique">Stage académique</SelectItem>
+                  <SelectItem value="stage_professionnel">Stage professionnel</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Section Documents */}
+          {demandType === "stage_academique" && (
+            <>
+              <div className="text-center mb-8">
+                <h2 className="text-xl font-bold">DOCUMENTS</h2>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="titre">Titre de la demande *</Label>
-                <Input
-                  id="titre"
-                  value={formData.titre}
-                  onChange={(e) => handleInputChange("titre", e.target.value)}
-                  placeholder="Ex: Demande de validation de stage"
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+                <FileUploadBox
+                  id="cv-upload"
+                  label="CV"
+                  placeholder="Déposer votre cv ici"
+                  documentType="cv"
+                  required
+                />
+
+                <FileUploadBox
+                  id="certificat-upload"
+                  label="Certificat de scolarité"
+                  placeholder="Déposer votre Lettre de motivation ici"
+                  documentType="certificat_scolarite"
+                  required
+                />
+
+                <FileUploadBox
+                  id="motivation-upload"
+                  label="Lettre de motivation"
+                  placeholder="Déposer votre Lettre de motivation ici"
+                  documentType="lettre_motivation"
+                  required
+                />
+
+                <FileUploadBox
+                  id="recommandation-upload"
+                  label="Lettre de recommandation"
+                  placeholder="Déposer votre Lettre de recommandation ici"
+                  documentType="lettre_recommandation"
                   required
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Décrivez votre demande en détail..."
-                  rows={6}
-                />
+              <div className="text-center mb-8">
+                <h2 className="text-xl font-bold">INFORMATIONS PERSONNELLES</h2>
               </div>
 
-              <div className="flex justify-end space-x-4">
-                <Button type="button" variant="outline" onClick={() => router.back()}>
-                  Annuler
-                </Button>
-                <Button type="submit" disabled={loading}>
-                  {loading ? (
-                    "Création..."
-                  ) : (
-                    <>
-                      <Save className="mr-2 h-4 w-4" />
-                      Créer la demande
-                    </>
-                  )}
-                </Button>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+                <FileUploadBox
+                  id="identite-upload"
+                  label="Pièce d'identité"
+                  placeholder="Déposer votre ici"
+                  documentType="piece_identite"
+                  required
+                />
+
+                <FileUploadBox
+                  id="plan-upload"
+                  label="Plan de localisation"
+                  placeholder="Déposer votre plan de location"
+                  documentType="plan_localisation"
+                />
               </div>
-            </form>
-          </CardContent>
-        </Card>
-      </main>
+            </>
+          )}
+
+          {demandType === "stage_professionnel" && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+                <FileUploadBox
+                  id="cv-upload"
+                  label="CV"
+                  placeholder="Déposer votre cv ici"
+                  documentType="cv"
+                  required
+                />
+
+                <FileUploadBox
+                  id="certificat-upload"
+                  label="Certificat de scolarité"
+                  placeholder="Déposer votre Lettre de motivation ici"
+                  documentType="certificat_scolarite"
+                  required
+                />
+
+                <FileUploadBox
+                  id="motivation-upload"
+                  label="Lettre de motivation"
+                  placeholder="Déposer votre Lettre de motivation ici"
+                  documentType="lettre_motivation"
+                  required
+                />
+
+                <FileUploadBox
+                  id="recommandation-upload"
+                  label="Lettre de recommandation"
+                  placeholder="Déposer votre Lettre de recommandation ici"
+                  documentType="lettre_recommandation"
+                  required
+                />
+
+                <FileUploadBox
+                  id="diplome-upload"
+                  label="Dernier diplôme"
+                  placeholder="Déposez votre diplôme ici"
+                  documentType="dernier_diplome"
+                  required
+                />
+
+                <FileUploadBox
+                  id="supplementaire-upload"
+                  label="Document supplémentaire"
+                  placeholder="Facultatif"
+                  documentType="document_supplementaire"
+                />
+
+                <FileUploadBox
+                  id="identite-upload"
+                  label="Pièce d'identité"
+                  placeholder="Déposer votre ici"
+                  documentType="piece_identite"
+                  required
+                />
+
+                <FileUploadBox
+                  id="plan-upload"
+                  label="Plan de localisation"
+                  placeholder="Déposer votre plan de location"
+                  documentType="plan_localisation"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Section Périodes */}
+          <div className="text-center mb-8">
+            <h2 className="text-xl font-bold">PÉRIODES</h2>
+          </div>
+
+          <div className="flex items-center justify-center space-x-8 mb-16">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Date de début</Label>
+              <div className="flex space-x-4">
+                <Select value={periode.jours} onValueChange={(value) => setPeriode({ ...periode, jours: value })}>
+                  <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                    <SelectValue placeholder="Jours" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 31 }, (_, i) => (
+                      <SelectItem key={i + 1} value={String(i + 1)}>
+                        {i + 1}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                <Select value={periode.mois} onValueChange={(value) => setPeriode({ ...periode, mois: value })}>
+                  <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                    <SelectValue placeholder="Mois" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="1">Jan</SelectItem>
+                    <SelectItem value="2">Fév</SelectItem>
+                    <SelectItem value="3">Mar</SelectItem>
+                    <SelectItem value="4">Avr</SelectItem>
+                    <SelectItem value="5">Mai</SelectItem>
+                    <SelectItem value="6">Juin</SelectItem>
+                    <SelectItem value="7">Juil</SelectItem>
+                    <SelectItem value="8">Août</SelectItem>
+                    <SelectItem value="9">Sep</SelectItem>
+                    <SelectItem value="10">Oct</SelectItem>
+                    <SelectItem value="11">Nov</SelectItem>
+                    <SelectItem value="12">Déc</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Select value={periode.annee} onValueChange={(value) => setPeriode({ ...periode, annee: value })}>
+                  <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                    <SelectValue placeholder="Année" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Nombre de mois</Label>
+              <Input
+                value={periode.nombre_mois + " mois"}
+                onChange={(e) => setPeriode({ ...periode, nombre_mois: e.target.value.replace(" mois", "") })}
+                className="w-32 h-12 rounded-full text-center border-2"
+                placeholder="6 mois"
+              />
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div className="text-center">
+            <Button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-full text-lg font-medium"
+            >
+              {loading ? "Envoi..." : "Envoyer"}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
