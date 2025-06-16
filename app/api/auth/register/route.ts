@@ -47,7 +47,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer le profil utilisateur dans notre table users
-    // Utilisons seulement les colonnes de base pour éviter les erreurs de schéma
     try {
       const userProfile = {
         id: authData.user.id,
@@ -63,27 +62,9 @@ export async function POST(request: NextRequest) {
         userProfile.phone = telephone
       }
 
-      // Essayer d'abord avec toutes les colonnes
       const { error: profileError } = await supabase.from("users").insert([userProfile])
 
-      // Si erreur de colonne manquante, essayer avec les colonnes de base seulement
-      if (profileError && profileError.message.includes("column")) {
-        console.warn("Some columns missing, trying with basic columns only:", profileError.message)
-
-        const basicProfile = {
-          id: authData.user.id,
-          email: authData.user.email!,
-          name: `${prenom} ${nom}`,
-          role: (role as UserRole) || "stagiaire",
-        }
-
-        const { error: basicError } = await supabase.from("users").insert([basicProfile])
-
-        if (basicError) {
-          console.error("Profile creation error with basic columns:", basicError)
-          // Ne pas échouer si le profil n'est pas créé
-        }
-      } else if (profileError) {
+      if (profileError) {
         console.error("Profile creation error:", profileError)
         // Ne pas échouer si le profil n'est pas créé
       }
@@ -107,6 +88,12 @@ export async function POST(request: NextRequest) {
     })
   } catch (error) {
     console.error("Registration error:", error)
-    return NextResponse.json({ error: "Erreur serveur lors de l'inscription" }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: "Erreur serveur lors de l'inscription",
+        details: error instanceof Error ? error.message : "Erreur inconnue",
+      },
+      { status: 500 },
+    )
   }
 }

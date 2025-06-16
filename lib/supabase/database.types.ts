@@ -269,5 +269,5 @@ export interface Database {
   }
 }
 
-// Export nommé pour Database
+// Export nommé explicite pour Database
 export type { Database }
