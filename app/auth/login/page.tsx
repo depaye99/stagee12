@@ -28,16 +28,26 @@ function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { toast } = useToast()
-  const redirectTo = searchParams.get("redirectTo")
+  const redirectTo = searchParams.get('redirectTo')
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
     setIsLoading(true)
     setError("")
 
-    try {
-      console.log("Attempting login with:", formData.email)
+    // Vérifier la configuration Supabase côté client
+    if (typeof window !== 'undefined') {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      
+      if (!supabaseUrl || !supabaseKey) {
+        setError("Configuration Supabase manquante. Vérifiez vos variables d'environnement.")
+        setIsLoading(false)
+        return
+      }
+    }
 
+    try {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -47,7 +57,6 @@ function LoginForm() {
       })
 
       const data = await response.json()
-      console.log("Login response:", { success: data.success, error: data.error })
 
       if (!response.ok || !data.success) {
         throw new Error(data.error || "Erreur de connexion")
@@ -58,16 +67,29 @@ function LoginForm() {
         description: "Redirection en cours...",
       })
 
-      // Attendre un peu pour que le toast s'affiche
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Redirection simple
-      if (redirectTo && redirectTo !== "/auth/login" && redirectTo !== "/auth/register") {
+      // Redirection immédiate après succès
+      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register') {
         console.log("Redirecting to:", redirectTo)
-        router.push(redirectTo)
+        window.location.href = redirectTo
       } else {
-        console.log("Redirecting to default dashboard")
-        router.push("/stagiaire")
+        const userRole = data.user?.role || "stagiaire"
+        console.log("User role for redirection:", userRole)
+        
+        let targetPath = "/stagiaire"
+        switch (userRole) {
+          case "admin":
+            targetPath = "/admin"
+            break
+          case "rh":
+            targetPath = "/rh"
+            break
+          case "tuteur":
+            targetPath = "/tuteur"
+            break
+        }
+        
+        console.log("Redirecting to:", targetPath)
+        window.location.href = targetPath
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur de connexion"
@@ -165,14 +187,6 @@ function LoginForm() {
             </Link>
           </p>
         </div>
-
-        {/* Debug info en développement */}
-        {process.env.NODE_ENV === "development" && (
-          <div className="mt-4 p-2 bg-gray-100 rounded text-xs">
-            <p>Debug: redirectTo = {redirectTo || "none"}</p>
-            <p>Supabase URL: {process.env.NEXT_PUBLIC_SUPABASE_URL ? "configured" : "missing"}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   )
@@ -181,17 +195,15 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Suspense
-        fallback={
-          <Card className="w-full max-w-md">
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-center">
-                <Loader2 className="h-8 w-8 animate-spin" />
-              </div>
-            </CardContent>
-          </Card>
-        }
-      >
+      <Suspense fallback={
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-center">
+              <Loader2 className="h-8 w-8 animate-spin" />
+            </div>
+          </CardContent>
+        </Card>
+      }>
         <LoginForm />
       </Suspense>
     </div>
