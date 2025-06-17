@@ -38,7 +38,27 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   }, [user])
 
   const loadNotifications = async () => {
-    // TODO: Implémenter le chargement des notifications depuis Supabase
+    try {
+      // Simuler quelques notifications pour la démo
+      setNotifications([
+        {
+          id: 1,
+          titre: "Nouvelle demande",
+          message: "Une nouvelle demande de stage a été soumise",
+          date: new Date().toISOString(),
+          read: false,
+        },
+        {
+          id: 2,
+          titre: "Validation requise",
+          message: "Une demande nécessite votre validation",
+          date: new Date(Date.now() - 86400000).toISOString(),
+          read: false,
+        },
+      ])
+    } catch (error) {
+      console.error("Erreur lors du chargement des notifications:", error)
+    }
   }
 
   const handleLogout = async () => {
@@ -53,13 +73,13 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "admin":
-        return t("admin")
+        return "Administrateur"
       case "rh":
-        return t("hr")
+        return "Ressources Humaines"
       case "tuteur":
-        return t("tutor")
+        return "Tuteur"
       case "stagiaire":
-        return t("intern")
+        return "Stagiaire"
       default:
         return role
     }
@@ -80,26 +100,49 @@ export function Header({ user, showAuth = false }: HeaderProps) {
     }
   }
 
+  const getUserDisplayName = () => {
+    if (user?.first_name && user?.last_name) {
+      return `${user.first_name} ${user.last_name}`
+    }
+    if (user?.name) {
+      return user.name
+    }
+    if (user?.email) {
+      return user.email.split("@")[0]
+    }
+    return "Utilisateur"
+  }
+
+  const getUserInitials = () => {
+    const name = getUserDisplayName()
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2)
+  }
+
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4" style={{ borderColor: primaryColor + "20" }}>
+    <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
           <div className="flex items-center">
             <div className="relative mr-3">
               <div
                 className="w-8 h-8 border-2 rounded-full flex items-center justify-center"
-                style={{ borderColor: primaryColor }}
+                style={{ borderColor: primaryColor || "#3B82F6" }}
               >
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: primaryColor }}></div>
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: primaryColor || "#3B82F6" }}></div>
               </div>
               <div
                 className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                style={{ backgroundColor: primaryColor }}
+                style={{ backgroundColor: primaryColor || "#3B82F6" }}
               ></div>
             </div>
             <div>
               <div className="font-bold text-lg text-foreground">BRIDGE</div>
-              <div className="text-sm font-medium" style={{ color: primaryColor }}>
+              <div className="text-sm font-medium" style={{ color: primaryColor || "#3B82F6" }}>
                 Technologies
               </div>
               <div className="text-xs text-muted-foreground">Solutions</div>
@@ -107,23 +150,19 @@ export function Header({ user, showAuth = false }: HeaderProps) {
           </div>
         </Link>
 
-        {!showAuth && (
+        {!showAuth && !user && (
           <nav className="hidden md:flex items-center space-x-8">
-            <Link
-              href="/"
-              className="text-foreground hover:text-blue-500 font-medium"
-              style={{ "--hover-color": primaryColor } as any}
-            >
-              {t("home")}
+            <Link href="/" className="text-foreground hover:text-blue-500 font-medium transition-colors">
+              Accueil
             </Link>
-            <Link href="/contacts" className="text-foreground hover:text-blue-500 font-medium">
-              {t("contacts")}
+            <Link href="/contacts" className="text-foreground hover:text-blue-500 font-medium transition-colors">
+              Contacts
             </Link>
-            <Link href="/entreprise" className="text-foreground hover:text-blue-500 font-medium">
-              {t("company")}
+            <Link href="/entreprise" className="text-foreground hover:text-blue-500 font-medium transition-colors">
+              Entreprise
             </Link>
-            <Link href="/services" className="text-foreground hover:text-blue-500 font-medium">
-              {t("services")}
+            <Link href="/services" className="text-foreground hover:text-blue-500 font-medium transition-colors">
+              Services
             </Link>
           </nav>
         )}
@@ -139,7 +178,7 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                     {notifications.length > 0 && (
                       <span
                         className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-                        style={{ backgroundColor: primaryColor }}
+                        style={{ backgroundColor: primaryColor || "#EF4444" }}
                       >
                         {notifications.length}
                       </span>
@@ -147,10 +186,10 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>{t("notification")}</DropdownMenuLabel>
+                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">{t("noData")}</div>
+                    <div className="p-4 text-center text-gray-500">Aucune notification</div>
                   ) : (
                     notifications.map((notification) => (
                       <DropdownMenuItem key={notification.id} className="flex flex-col items-start p-4">
@@ -168,39 +207,41 @@ export function Header({ user, showAuth = false }: HeaderProps) {
               {/* Menu utilisateur */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-2">
+                  <Button variant="ghost" className="flex items-center space-x-2 h-auto p-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback>
-                        {user.first_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || "U"}
-                      </AvatarFallback>
+                      <AvatarFallback className="text-sm font-medium">{getUserInitials()}</AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <div className="text-sm font-medium">
-                        {user.first_name} {user.last_name}
-                      </div>
-                      <div className="text-xs text-gray-500">{getRoleLabel(user.role)}</div>
+                      <div className="text-sm font-medium text-foreground">{getUserDisplayName()}</div>
+                      <div className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</div>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{t("profile")}</DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium">{getUserDisplayName()}</p>
+                      <p className="text-xs text-muted-foreground">{user.email}</p>
+                      <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
+                    </div>
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href={getProfileLink(user.role)} className="flex items-center">
+                    <Link href={getProfileLink(user.role)} className="flex items-center cursor-pointer">
                       <User className="mr-2 h-4 w-4" />
-                      {t("profile")}
+                      Profil
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/settings" className="flex items-center">
+                    <Link href="/settings" className="flex items-center cursor-pointer">
                       <Settings className="mr-2 h-4 w-4" />
                       Paramètres
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 cursor-pointer">
                     <LogOut className="mr-2 h-4 w-4" />
-                    {t("logout")}
+                    Se déconnecter
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -218,6 +259,14 @@ export function Header({ user, showAuth = false }: HeaderProps) {
             <>
               <LanguageSelector />
               <ThemeToggle />
+              <div className="flex items-center space-x-2">
+                <Link href="/auth/login">
+                  <Button variant="ghost">Se connecter</Button>
+                </Link>
+                <Link href="/auth/register">
+                  <Button>S'inscrire</Button>
+                </Link>
+              </div>
             </>
           )}
         </div>
