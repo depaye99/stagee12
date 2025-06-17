@@ -8,31 +8,10 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const pathname = request.nextUrl.pathname
-
-  // Routes système - toujours autorisées
-  if (
-    pathname.startsWith("/_next/") ||
-    pathname.startsWith("/api/") ||
-    pathname.includes("/favicon") ||
-    pathname.startsWith("/images/") ||
-    pathname.startsWith("/public/")
-  ) {
-    return response
-  }
-
-  // Routes publiques - pas d'authentification requise
-  const publicRoutes = ["/", "/auth/login", "/auth/register"]
-  if (publicRoutes.includes(pathname)) {
-    return response
-  }
-
-  // Configuration Supabase
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("⚠️ Supabase not configured, allowing access")
     return response
   }
 
@@ -55,24 +34,38 @@ export async function middleware(request: NextRequest) {
       },
     })
 
-    // Vérifier l'authentification de manière non-bloquante
+    const pathname = request.nextUrl.pathname
+
+    // Routes publiques - pas d'authentification requise
+    const publicRoutes = ["/", "/auth/login", "/auth/register"]
+
+    // Routes système - toujours autorisées
+    if (
+      pathname.startsWith("/_next/") ||
+      pathname.startsWith("/api/auth/") ||
+      pathname.includes("/favicon") ||
+      pathname.startsWith("/images/") ||
+      publicRoutes.includes(pathname)
+    ) {
+      return response
+    }
+
+    // Vérifier l'authentification pour les routes privées
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    // Si pas d'utilisateur ET que c'est une route privée, rediriger vers login
-    if (!user && !publicRoutes.includes(pathname)) {
-      console.log("🚫 No user found, redirecting to login from:", pathname)
+    if (!user) {
       const loginUrl = new URL("/auth/login", request.url)
-      loginUrl.searchParams.set("redirectTo", pathname)
+      if (pathname !== "/auth/login") {
+        loginUrl.searchParams.set("redirectTo", pathname)
+      }
       return NextResponse.redirect(loginUrl)
     }
 
-    console.log("✅ Access granted to:", pathname, user ? `(${user.email})` : "(no user)")
     return response
   } catch (error) {
     console.error("Middleware error:", error)
-    // En cas d'erreur, laisser passer pour éviter les blocages
     return response
   }
 }

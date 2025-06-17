@@ -1,132 +1,173 @@
 "use client"
 
-import { DashboardLayout } from "@/components/layout/dashboard-layout"
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, FileText, Calendar, Star, UserCheck } from "lucide-react"
-import Link from "next/link"
+import { Header } from "@/components/layout/header"
+import { Users, FileText, ClipboardList, Calendar } from "lucide-react"
+import { createClient } from "@/lib/supabase/client"
 
-export default function TuteurPage() {
+export default function TuteurDashboard() {
+  const [user, setUser] = useState<any>(null)
+  const [stats, setStats] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+  const supabase = createClient()
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      if (!session) {
+        router.push("/auth/login")
+        return
+      }
+
+      const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+
+      if (!profile || profile.role !== "tuteur") {
+        router.push("/auth/login")
+        return
+      }
+
+      setUser(profile)
+      await loadStats()
+      setLoading(false)
+    }
+
+    checkAuth()
+  }, [router, supabase])
+
+  const loadStats = async () => {
+    try {
+      const [mesStagiairesCount, demandesCount, evaluationsCount] = await Promise.all([
+        supabase.from("stagiaires").select("id", { count: "exact", head: true }).eq("tuteur_id", user?.id),
+        supabase.from("demandes").select("id", { count: "exact", head: true }).eq("tuteur_id", user?.id),
+        supabase.from("evaluations").select("id", { count: "exact", head: true }).eq("evaluateur_id", user?.id),
+      ])
+
+      setStats({
+        mes_stagiaires: mesStagiairesCount.count || 0,
+        demandes_total: demandesCount.count || 0,
+        evaluations_total: evaluationsCount.count || 0,
+      })
+    } catch (error) {
+      console.error("Erreur lors du chargement des statistiques:", error)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
   return (
-    <DashboardLayout requiredRole="tuteur">
-      <div className="space-y-6">
-        {/* En-tête */}
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Espace Tuteur</h1>
-            <p className="text-gray-600">Encadrez vos stagiaires et gérez leurs évaluations</p>
-          </div>
-          <div className="flex space-x-2">
-            <Link href="/tuteur/evaluations">
-              <Button variant="outline">
-                <Star className="h-4 w-4 mr-2" />
-                Évaluations
-              </Button>
-            </Link>
-            <Link href="/tuteur/planning">
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Calendar className="h-4 w-4 mr-2" />
-                Planning
-              </Button>
-            </Link>
-          </div>
+    <div className="min-h-screen bg-gray-50">
+      <Header user={user} />
+
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">Tableau de bord Tuteur</h1>
+          <p className="text-gray-600">Bienvenue, {user?.name}</p>
         </div>
 
-        {/* Statistiques Tuteur */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Statistiques */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Mes stagiaires</CardTitle>
-              <Users className="h-4 w-4 text-blue-500" />
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">Actuellement encadrés</p>
+              <div className="text-2xl font-bold">{stats?.mes_stagiaires || 0}</div>
+              <p className="text-xs text-muted-foreground">Stagiaires sous ma supervision</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Demandes à valider</CardTitle>
-              <FileText className="h-4 w-4 text-orange-500" />
+              <CardTitle className="text-sm font-medium">Demandes</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">5</div>
-              <p className="text-xs text-muted-foreground">En attente</p>
+              <div className="text-2xl font-bold">{stats?.demandes_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Demandes à traiter</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Évaluations</CardTitle>
-              <Star className="h-4 w-4 text-yellow-500" />
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">8</div>
-              <p className="text-xs text-muted-foreground">À compléter</p>
+              <div className="text-2xl font-bold">{stats?.evaluations_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Évaluations réalisées</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Actions */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Mes stagiaires</CardTitle>
+              <CardDescription>Gérer et suivre mes stagiaires</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => router.push("/tuteur/stagiaires")}>
+                <Users className="mr-2 h-4 w-4" />
+                Voir mes stagiaires
+              </Button>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Note moyenne</CardTitle>
-              <UserCheck className="h-4 w-4 text-green-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">4.2/5</div>
-              <p className="text-xs text-muted-foreground">Satisfaction stagiaires</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Actions Tuteur */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Users className="h-5 w-5 mr-2 text-blue-600" />
-                Mes stagiaires
-              </CardTitle>
-              <CardDescription>Gérer et suivre mes stagiaires</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Link href="/tuteur/stagiaires">
-                <Button className="w-full">Voir mes stagiaires</Button>
-              </Link>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <FileText className="h-5 w-5 mr-2 text-green-600" />
-                Demandes à valider
-              </CardTitle>
+              <CardTitle>Demandes</CardTitle>
               <CardDescription>Traiter les demandes de mes stagiaires</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/tuteur/demandes">
-                <Button className="w-full">Valider les demandes</Button>
-              </Link>
+              <Button className="w-full" onClick={() => router.push("/tuteur/demandes")}>
+                <FileText className="mr-2 h-4 w-4" />
+                Voir les demandes
+              </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
+          <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Star className="h-5 w-5 mr-2 text-yellow-600" />
-                Évaluations
-              </CardTitle>
-              <CardDescription>Évaluer les performances</CardDescription>
+              <CardTitle>Évaluations</CardTitle>
+              <CardDescription>Évaluer les performances des stagiaires</CardDescription>
             </CardHeader>
             <CardContent>
-              <Link href="/tuteur/evaluations">
-                <Button className="w-full">Faire une évaluation</Button>
-              </Link>
+              <Button className="w-full" onClick={() => router.push("/tuteur/evaluations")}>
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Gérer les évaluations
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Planning</CardTitle>
+              <CardDescription>Consulter le planning des stages</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => router.push("/tuteur/planning")}>
+                <Calendar className="mr-2 h-4 w-4" />
+                Voir le planning
+              </Button>
             </CardContent>
           </Card>
         </div>
-      </div>
-    </DashboardLayout>
+      </main>
+    </div>
   )
 }
