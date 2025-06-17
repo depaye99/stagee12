@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { Bell, LogOut, User, Settings, Sun, Moon, Languages } from "lucide-react"
+import { Bell, LogOut, User, Settings } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,10 +15,10 @@ import {
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { authService } from "@/lib/services/auth-service"
-import { useTranslation, languages, type Language } from "@/lib/i18n"
-import { useTheme } from "next-themes"
+import { useTranslation } from "@/lib/i18n"
 import { useAppStore } from "@/lib/store"
-import { createClient } from "@/lib/supabase/client"
+import { LanguageSelector } from "@/components/language-selector"
+import { ThemeToggle } from "@/components/theme-toggle"
 
 interface HeaderProps {
   user?: any
@@ -28,10 +28,8 @@ interface HeaderProps {
 export function Header({ user, showAuth = false }: HeaderProps) {
   const [notifications, setNotifications] = useState<any[]>([])
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
-  const { language, setLanguage, primaryColor } = useAppStore()
+  const { language, primaryColor } = useAppStore()
   const { t } = useTranslation(language)
-  const supabase = createClient()
 
   useEffect(() => {
     if (user) {
@@ -40,21 +38,7 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   }, [user])
 
   const loadNotifications = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("lu", false)
-        .order("created_at", { ascending: false })
-        .limit(10)
-
-      if (!error && data) {
-        setNotifications(data)
-      }
-    } catch (error) {
-      console.error("Erreur lors du chargement des notifications:", error)
-    }
+    // TODO: Implémenter le chargement des notifications depuis Supabase
   }
 
   const handleLogout = async () => {
@@ -69,13 +53,13 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "admin":
-        return "Administrateur"
+        return t("admin")
       case "rh":
-        return "Ressources Humaines"
+        return t("hr")
       case "tuteur":
-        return "Tuteur"
+        return t("tutor")
       case "stagiaire":
-        return "Stagiaire"
+        return t("intern")
       default:
         return role
     }
@@ -96,27 +80,9 @@ export function Header({ user, showAuth = false }: HeaderProps) {
     }
   }
 
-  const toggleTheme = () => {
-    setTheme(theme === "dark" ? "light" : "dark")
-  }
-
-  const changeLanguage = (newLang: Language) => {
-    setLanguage(newLang)
-  }
-
-  const markNotificationAsRead = async (notificationId: string) => {
-    try {
-      await supabase.from("notifications").update({ lu: true }).eq("id", notificationId)
-      setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
-    } catch (error) {
-      console.error("Erreur lors du marquage de la notification:", error)
-    }
-  }
-
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4 shadow-sm">
+    <header className="bg-white border-b border-gray-200 px-6 py-4" style={{ borderColor: primaryColor + "20" }}>
       <div className="flex items-center justify-between">
-        {/* Logo */}
         <Link href="/" className="flex items-center space-x-2">
           <div className="flex items-center">
             <div className="relative mr-3">
@@ -141,137 +107,60 @@ export function Header({ user, showAuth = false }: HeaderProps) {
           </div>
         </Link>
 
-        {/* Navigation centrale (si pas en mode auth) */}
-        {!showAuth && user && (
+        {!showAuth && (
           <nav className="hidden md:flex items-center space-x-8">
             <Link
-              href={
-                user.role === "admin"
-                  ? "/admin"
-                  : user.role === "rh"
-                    ? "/rh"
-                    : user.role === "tuteur"
-                      ? "/tuteur"
-                      : "/stagiaire"
-              }
-              className="text-foreground hover:text-blue-500 font-medium transition-colors"
+              href="/"
+              className="text-foreground hover:text-blue-500 font-medium"
+              style={{ "--hover-color": primaryColor } as any}
             >
-              Tableau de bord
+              {t("home")}
             </Link>
-            {user.role === "stagiaire" && (
-              <>
-                <Link href="/stagiaire/demandes" className="text-foreground hover:text-blue-500 font-medium">
-                  Mes demandes
-                </Link>
-                <Link href="/stagiaire/documents" className="text-foreground hover:text-blue-500 font-medium">
-                  Mes documents
-                </Link>
-              </>
-            )}
-            {user.role === "tuteur" && (
-              <>
-                <Link href="/tuteur/stagiaires" className="text-foreground hover:text-blue-500 font-medium">
-                  Mes stagiaires
-                </Link>
-                <Link href="/tuteur/evaluations" className="text-foreground hover:text-blue-500 font-medium">
-                  Évaluations
-                </Link>
-              </>
-            )}
-            {user.role === "rh" && (
-              <>
-                <Link href="/rh/stagiaires" className="text-foreground hover:text-blue-500 font-medium">
-                  Stagiaires
-                </Link>
-                <Link href="/rh/demandes" className="text-foreground hover:text-blue-500 font-medium">
-                  Demandes
-                </Link>
-              </>
-            )}
-            {user.role === "admin" && (
-              <>
-                <Link href="/admin/users" className="text-foreground hover:text-blue-500 font-medium">
-                  Utilisateurs
-                </Link>
-                <Link href="/admin/stagiaires" className="text-foreground hover:text-blue-500 font-medium">
-                  Stagiaires
-                </Link>
-              </>
-            )}
+            <Link href="/contacts" className="text-foreground hover:text-blue-500 font-medium">
+              {t("contacts")}
+            </Link>
+            <Link href="/entreprise" className="text-foreground hover:text-blue-500 font-medium">
+              {t("company")}
+            </Link>
+            <Link href="/services" className="text-foreground hover:text-blue-500 font-medium">
+              {t("services")}
+            </Link>
           </nav>
         )}
 
-        {/* Actions à droite */}
         <div className="flex items-center space-x-4">
           {user ? (
             <>
-              {/* Sélecteur de langue */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="h-9 w-9">
-                    <Languages className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  {Object.entries(languages).map(([code, lang]) => (
-                    <DropdownMenuItem
-                      key={code}
-                      onClick={() => changeLanguage(code as Language)}
-                      className={language === code ? "bg-accent" : ""}
-                    >
-                      <span className="mr-2">{lang.flag}</span>
-                      {lang.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Toggle thème */}
-              <Button variant="outline" size="icon" onClick={toggleTheme} className="h-9 w-9">
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
-
               {/* Notifications */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="relative h-9 w-9">
-                    <Bell className="h-4 w-4" />
+                  <Button variant="ghost" size="sm" className="relative">
+                    <Bell className="h-5 w-5" />
                     {notifications.length > 0 && (
                       <span
-                        className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold"
+                        className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
                         style={{ backgroundColor: primaryColor }}
                       >
-                        {notifications.length > 9 ? "9+" : notifications.length}
+                        {notifications.length}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuLabel>{t("notification")}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">Aucune notification</div>
+                    <div className="p-4 text-center text-gray-500">{t("noData")}</div>
                   ) : (
-                    <div className="max-h-96 overflow-y-auto">
-                      {notifications.map((notification) => (
-                        <DropdownMenuItem
-                          key={notification.id}
-                          className="flex flex-col items-start p-4 cursor-pointer"
-                          onClick={() => markNotificationAsRead(notification.id)}
-                        >
-                          <div className="font-medium">{notification.titre}</div>
-                          <div className="text-sm text-gray-500 mt-1">{notification.message}</div>
-                          <div className="text-xs text-gray-400 mt-2">
-                            {new Date(notification.created_at).toLocaleDateString("fr-FR", {
-                              day: "numeric",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                    </div>
+                    notifications.map((notification) => (
+                      <DropdownMenuItem key={notification.id} className="flex flex-col items-start p-4">
+                        <div className="font-medium">{notification.titre}</div>
+                        <div className="text-sm text-gray-500">{notification.message}</div>
+                        <div className="text-xs text-gray-400">
+                          {new Date(notification.date).toLocaleDateString("fr-FR")}
+                        </div>
+                      </DropdownMenuItem>
+                    ))
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -279,54 +168,39 @@ export function Header({ user, showAuth = false }: HeaderProps) {
               {/* Menu utilisateur */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="flex items-center space-x-3 h-auto py-2 px-3">
+                  <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
-                      <AvatarFallback className="text-sm font-medium">
-                        {user.first_name?.[0]?.toUpperCase() ||
-                          user.name?.[0]?.toUpperCase() ||
-                          user.email?.[0]?.toUpperCase() ||
-                          "U"}
+                      <AvatarFallback>
+                        {user.first_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <div className="text-sm font-medium text-foreground">
-                        {user.first_name && user.last_name
-                          ? `${user.first_name} ${user.last_name}`
-                          : user.name || user.email}
+                      <div className="text-sm font-medium">
+                        {user.first_name} {user.last_name}
                       </div>
-                      <div className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</div>
+                      <div className="text-xs text-gray-500">{getRoleLabel(user.role)}</div>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>
-                    <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium">
-                        {user.first_name && user.last_name
-                          ? `${user.first_name} ${user.last_name}`
-                          : user.name || "Utilisateur"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
-                      <p className="text-xs text-muted-foreground">{getRoleLabel(user.role)}</p>
-                    </div>
-                  </DropdownMenuLabel>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuLabel>{t("profile")}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href={getProfileLink(user.role)} className="flex items-center cursor-pointer">
+                    <Link href={getProfileLink(user.role)} className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
-                      Mon profil
+                      {t("profile")}
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/settings" className="flex items-center cursor-pointer">
+                    <Link href="/settings" className="flex items-center">
                       <Settings className="mr-2 h-4 w-4" />
                       Paramètres
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600 cursor-pointer">
+                  <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
-                    Se déconnecter
+                    {t("logout")}
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -342,31 +216,8 @@ export function Header({ user, showAuth = false }: HeaderProps) {
             </div>
           ) : (
             <>
-              {/* Sélecteur de langue pour visiteurs */}
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon">
-                    <Languages className="h-4 w-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  {Object.entries(languages).map(([code, lang]) => (
-                    <DropdownMenuItem
-                      key={code}
-                      onClick={() => changeLanguage(code as Language)}
-                      className={language === code ? "bg-accent" : ""}
-                    >
-                      <span className="mr-2">{lang.flag}</span>
-                      {lang.name}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              {/* Toggle thème pour visiteurs */}
-              <Button variant="outline" size="icon" onClick={toggleTheme}>
-                {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </Button>
+              <LanguageSelector />
+              <ThemeToggle />
             </>
           )}
         </div>
