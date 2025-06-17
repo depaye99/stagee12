@@ -1,292 +1,197 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { DashboardLayout } from "@/components/layout/dashboard-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Separator } from "@/components/ui/separator"
-import { Header } from "@/components/layout/header"
-import { FileText, Clock, CheckCircle, XCircle, Plus, Calendar, Mail, Phone } from "lucide-react"
+import { FileText, Calendar, User, Plus, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import Link from "next/link"
-import { authService } from "@/lib/services/auth-service"
 
-interface Demande {
-  id: string
-  type: string
-  status: string
-  created_at: string
-  updated_at: string
-}
-
-export default function StagiaireDashboard() {
-  const [user, setUser] = useState<any | null>(null)
-  const [demandes, setDemandes] = useState<Demande[]>([])
-  const [loading, setLoading] = useState(true)
-  const router = useRouter()
-
-  useEffect(() => {
-    loadUserData()
-  }, [])
-
-  const loadUserData = async () => {
-    try {
-      const currentUser = await authService.getCurrentUser()
-      if (!currentUser) {
-        router.push("/auth/login")
-        return
-      }
-
-      setUser(currentUser)
-      // Charger les demandes de l'utilisateur
-      await loadDemandes(currentUser.id)
-    } catch (error) {
-      console.error("Error loading user data:", error)
-      router.push("/auth/login")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadDemandes = async (userId: string) => {
-    try {
-      // TODO: Implémenter le chargement des demandes depuis l'API
-      // const response = await fetch(`/api/stagiaire/demandes?userId=${userId}`)
-      // const data = await response.json()
-      // setDemandes(data.demandes || [])
-
-      // Données de test
-      setDemandes([
-        {
-          id: "1",
-          type: "Stage académique",
-          status: "en_attente",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
-    } catch (error) {
-      console.error("Error loading demandes:", error)
-    }
-  }
-
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case "approuve":
-        return (
-          <Badge className="bg-green-100 text-green-800">
-            <CheckCircle className="w-3 h-3 mr-1" />
-            Approuvé
-          </Badge>
-        )
-      case "rejete":
-        return (
-          <Badge className="bg-red-100 text-red-800">
-            <XCircle className="w-3 h-3 mr-1" />
-            Rejeté
-          </Badge>
-        )
-      case "en_attente":
-        return (
-          <Badge className="bg-yellow-100 text-yellow-800">
-            <Clock className="w-3 h-3 mr-1" />
-            En attente
-          </Badge>
-        )
-      default:
-        return <Badge variant="secondary">{status}</Badge>
-    }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <Header user={user} />
-        <div className="flex items-center justify-center h-96">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Chargement...</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
+export default function StagiairePage() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Header user={user} />
-
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        {/* En-tête de bienvenue */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
-            Bonjour, {user?.first_name || user?.name || "Stagiaire"} !
-          </h1>
-          <p className="mt-2 text-gray-600">
-            Bienvenue sur votre tableau de bord. Gérez vos demandes de stage et suivez leur progression.
-          </p>
+    <DashboardLayout requiredRole="stagiaire">
+      <div className="space-y-6">
+        {/* En-tête */}
+        <div className="flex justify-between items-center">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">Tableau de bord</h1>
+            <p className="text-gray-600">Gérez vos demandes de stage et suivez votre progression</p>
+          </div>
+          <Link href="/stagiaire/demandes/nouvelle">
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Nouvelle demande
+            </Button>
+          </Link>
         </div>
 
         {/* Statistiques rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <FileText className="h-8 w-8 text-blue-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total demandes</p>
-                  <p className="text-2xl font-bold text-gray-900">{demandes.length}</p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Demandes totales</CardTitle>
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">3</div>
+              <p className="text-xs text-muted-foreground">+1 ce mois</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <Clock className="h-8 w-8 text-yellow-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">En attente</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "en_attente").length}
-                  </p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">En attente</CardTitle>
+              <Clock className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">1</div>
+              <p className="text-xs text-muted-foreground">En cours de traitement</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <CheckCircle className="h-8 w-8 text-green-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Approuvées</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "approuve").length}
-                  </p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Approuvées</CardTitle>
+              <CheckCircle className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">2</div>
+              <p className="text-xs text-muted-foreground">Demandes validées</p>
             </CardContent>
           </Card>
 
           <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center">
-                <XCircle className="h-8 w-8 text-red-600" />
-                <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Rejetées</p>
-                  <p className="text-2xl font-bold text-gray-900">
-                    {demandes.filter((d) => d.status === "rejete").length}
-                  </p>
-                </div>
-              </div>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Documents</CardTitle>
+              <User className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">8</div>
+              <p className="text-xs text-muted-foreground">Fichiers uploadés</p>
             </CardContent>
           </Card>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Mes demandes récentes */}
-          <div className="lg:col-span-2">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <div>
-                  <CardTitle>Mes demandes récentes</CardTitle>
-                  <CardDescription>Suivez l'état de vos demandes de stage</CardDescription>
+        {/* Demandes récentes */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Mes demandes récentes</CardTitle>
+            <CardDescription>Suivez l'état de vos demandes de stage</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <FileText className="h-8 w-8 text-blue-600" />
+                  <div>
+                    <h3 className="font-medium">Demande de stage académique</h3>
+                    <p className="text-sm text-gray-600">Soumise le 15 janvier 2024</p>
+                  </div>
                 </div>
-                <Link href="/stagiaire/demandes/nouvelle">
-                  <Button>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Nouvelle demande
-                  </Button>
-                </Link>
-              </CardHeader>
-              <CardContent>
-                {demandes.length === 0 ? (
-                  <div className="text-center py-8">
-                    <FileText className="mx-auto h-12 w-12 text-gray-400" />
-                    <h3 className="mt-2 text-sm font-medium text-gray-900">Aucune demande</h3>
-                    <p className="mt-1 text-sm text-gray-500">Commencez par créer votre première demande de stage.</p>
-                    <div className="mt-6">
-                      <Link href="/stagiaire/demandes/nouvelle">
-                        <Button>
-                          <Plus className="w-4 h-4 mr-2" />
-                          Nouvelle demande
-                        </Button>
-                      </Link>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {demandes.map((demande) => (
-                      <div key={demande.id} className="flex items-center justify-between p-4 border rounded-lg">
-                        <div className="flex items-center space-x-4">
-                          <FileText className="h-5 w-5 text-gray-400" />
-                          <div>
-                            <p className="font-medium text-gray-900">{demande.type}</p>
-                            <p className="text-sm text-gray-500">
-                              Créée le {new Date(demande.created_at).toLocaleDateString("fr-FR")}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center space-x-2">{getStatusBadge(demande.status)}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Profil utilisateur */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Mon profil</CardTitle>
-                <CardDescription>Informations personnelles</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
                 <div className="flex items-center space-x-2">
-                  <Mail className="h-4 w-4 text-gray-400" />
-                  <span className="text-sm">{user?.email}</span>
+                  <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+                    <Clock className="h-3 w-3 mr-1" />
+                    En attente
+                  </Badge>
+                  <Button variant="outline" size="sm">
+                    Voir détails
+                  </Button>
                 </div>
-                {user?.phone && (
-                  <div className="flex items-center space-x-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-sm">{user.phone}</span>
-                  </div>
-                )}
-                <Separator />
-                <Link href="/stagiaire/profile">
-                  <Button variant="outline" className="w-full">
-                    Modifier le profil
-                  </Button>
-                </Link>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Actions rapides */}
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle>Actions rapides</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <Link href="/stagiaire/demandes">
-                  <Button variant="outline" className="w-full justify-start">
-                    <FileText className="w-4 h-4 mr-2" />
-                    Voir toutes mes demandes
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <FileText className="h-8 w-8 text-green-600" />
+                  <div>
+                    <h3 className="font-medium">Convention de stage</h3>
+                    <p className="text-sm text-gray-600">Approuvée le 10 janvier 2024</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="bg-green-100 text-green-800">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Approuvée
+                  </Badge>
+                  <Button variant="outline" size="sm">
+                    Télécharger
                   </Button>
-                </Link>
-                <Link href="/stagiaire/documents">
-                  <Button variant="outline" className="w-full justify-start">
-                    <Calendar className="w-4 h-4 mr-2" />
-                    Mes documents
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between p-4 border rounded-lg">
+                <div className="flex items-center space-x-4">
+                  <FileText className="h-8 w-8 text-red-600" />
+                  <div>
+                    <h3 className="font-medium">Demande de prolongation</h3>
+                    <p className="text-sm text-gray-600">Rejetée le 5 janvier 2024</p>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <Badge variant="secondary" className="bg-red-100 text-red-800">
+                    <AlertCircle className="h-3 w-3 mr-1" />
+                    Rejetée
+                  </Badge>
+                  <Button variant="outline" size="sm">
+                    Voir raison
                   </Button>
-                </Link>
-              </CardContent>
-            </Card>
-          </div>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Actions rapides */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Plus className="h-5 w-5 mr-2 text-blue-600" />
+                Nouvelle demande
+              </CardTitle>
+              <CardDescription>Créer une nouvelle demande de stage</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/stagiaire/demandes/nouvelle">
+                <Button className="w-full">Commencer</Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <FileText className="h-5 w-5 mr-2 text-green-600" />
+                Mes demandes
+              </CardTitle>
+              <CardDescription>Consulter toutes mes demandes</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/stagiaire/demandes">
+                <Button variant="outline" className="w-full">
+                  Voir tout
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <Calendar className="h-5 w-5 mr-2 text-purple-600" />
+                Mon profil
+              </CardTitle>
+              <CardDescription>Gérer mes informations personnelles</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link href="/stagiaire/profile">
+                <Button variant="outline" className="w-full">
+                  Modifier
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
         </div>
-      </main>
-    </div>
+      </div>
+    </DashboardLayout>
   )
 }
