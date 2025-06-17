@@ -61,34 +61,33 @@ export async function middleware(request: NextRequest) {
       },
     })
 
-    // Routes publiques qui ne nécessitent pas d'authentification
-    const publicRoutes = [
-      "/",
-      "/auth/login",
-      "/auth/register",
-      "/api/auth/login",
-      "/api/auth/register",
-      "/api/auth/logout",
-    ]
+    // Routes qui ne nécessitent jamais d'authentification
+    const alwaysPublicRoutes = ["/", "/auth/login", "/auth/register"]
 
-    const isPublicRoute = publicRoutes.some(
-      (route) =>
-        request.nextUrl.pathname === route ||
-        request.nextUrl.pathname.startsWith("/api/") ||
-        request.nextUrl.pathname.startsWith("/_next/") ||
-        request.nextUrl.pathname.startsWith("/favicon"),
-    )
+    // Routes API qui ne nécessitent pas d'authentification
+    const publicApiRoutes = ["/api/auth/login", "/api/auth/register", "/api/auth/logout", "/api/statistics"]
 
-    // Pour les routes API et assets, on laisse toujours passer
-    if (
-      request.nextUrl.pathname.startsWith("/api/") ||
-      request.nextUrl.pathname.startsWith("/_next/") ||
-      request.nextUrl.pathname.startsWith("/favicon")
-    ) {
+    // Assets et routes système
+    const systemRoutes = ["/_next/", "/favicon", "/images/", "/public/"]
+
+    const pathname = request.nextUrl.pathname
+
+    // Laisser passer les assets et routes système
+    if (systemRoutes.some((route) => pathname.startsWith(route))) {
       return response
     }
 
-    // Essayer de récupérer l'utilisateur (sans faire d'erreur si ça échoue)
+    // Laisser passer les routes API publiques
+    if (publicApiRoutes.some((route) => pathname === route || pathname.startsWith(route + "/"))) {
+      return response
+    }
+
+    // Laisser passer les routes toujours publiques
+    if (alwaysPublicRoutes.includes(pathname)) {
+      return response
+    }
+
+    // Pour toutes les autres routes, vérifier l'authentification
     let user = null
     try {
       const {
@@ -99,37 +98,35 @@ export async function middleware(request: NextRequest) {
       console.warn("Could not get user in middleware:", error)
     }
 
-    // Si pas d'utilisateur et route privée, rediriger vers login
-    if (!user && !isPublicRoute) {
+    // Si pas d'utilisateur, rediriger vers login
+    if (!user) {
+      console.log("No user found, redirecting to login from:", pathname)
       const loginUrl = new URL("/auth/login", request.url)
-      const fullPath = request.nextUrl.pathname + request.nextUrl.search
-      if (fullPath !== "/auth/login") {
-        loginUrl.searchParams.set("redirectTo", fullPath)
+      if (pathname !== "/auth/login") {
+        loginUrl.searchParams.set("redirectTo", pathname + request.nextUrl.search)
       }
       return NextResponse.redirect(loginUrl)
     }
 
-    // Si utilisateur connecté et sur page de login/register, rediriger vers dashboard
-    if (user && (request.nextUrl.pathname === "/auth/login" || request.nextUrl.pathname === "/auth/register")) {
-      // Vérifier s'il y a un paramètre redirectTo valide
+    // Si utilisateur connecté et sur page de login/register, rediriger
+    if (user && (pathname === "/auth/login" || pathname === "/auth/register")) {
       const redirectTo = request.nextUrl.searchParams.get("redirectTo")
 
       if (redirectTo && redirectTo !== "/auth/login" && redirectTo !== "/auth/register" && redirectTo.startsWith("/")) {
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Redirection par défaut basée sur le rôle
+      // Redirection par défaut
       return NextResponse.redirect(new URL("/stagiaire", request.url))
     }
 
     return response
   } catch (error) {
     console.error("Middleware error:", error)
-    // En cas d'erreur, laisser passer pour éviter de bloquer l'app
     return response
   }
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|public|images).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 }
