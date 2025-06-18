@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 
 interface AuthUser {
@@ -17,7 +16,6 @@ export function useAuth(requiredRole?: string) {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const router = useRouter()
   const supabase = createClient()
 
   useEffect(() => {
@@ -25,21 +23,31 @@ export function useAuth(requiredRole?: string) {
 
     const checkAuth = async () => {
       try {
+        // Vérifier la session actuelle
         const {
           data: { session },
           error: sessionError,
         } = await supabase.auth.getSession()
 
         if (sessionError) {
-          throw sessionError
-        }
-
-        if (!session) {
+          console.error("Session error:", sessionError)
           if (mounted) {
-            router.push("/auth/login")
+            setError("Erreur de session")
+            setLoading(false)
           }
           return
         }
+
+        if (!session?.user) {
+          console.log("No session found")
+          if (mounted) {
+            setUser(null)
+            setLoading(false)
+          }
+          return
+        }
+
+        console.log("Session found for:", session.user.email)
 
         // Récupérer les informations utilisateur depuis la base
         const { data: userData, error: userError } = await supabase
@@ -48,38 +56,39 @@ export function useAuth(requiredRole?: string) {
           .eq("id", session.user.id)
           .single()
 
+        let userProfile: AuthUser
+
         if (userError || !userData) {
-          console.error("User data error:", userError)
-          if (mounted) {
-            router.push("/auth/login")
+          console.warn("User not found in database, using session data")
+          // Utiliser les données de session si pas de profil en base
+          userProfile = {
+            id: session.user.id,
+            email: session.user.email!,
+            name: session.user.user_metadata?.name || session.user.email!.split("@")[0],
+            role: session.user.user_metadata?.role || "stagiaire",
+            first_name: session.user.user_metadata?.first_name,
+            last_name: session.user.user_metadata?.last_name,
           }
-          return
-        }
-
-        // Vérifier le rôle si requis
-        if (requiredRole && userData.role !== requiredRole) {
-          const dashboardRoute = getDashboardRoute(userData.role)
-          if (mounted) {
-            router.push(dashboardRoute)
-          }
-          return
-        }
-
-        if (mounted) {
-          setUser({
+        } else {
+          userProfile = {
             id: userData.id,
             email: userData.email,
-            name: userData.name || userData.first_name || userData.email,
+            name: userData.name || userData.first_name || userData.email.split("@")[0],
             role: userData.role,
             first_name: userData.first_name,
             last_name: userData.last_name,
-          })
+          }
+        }
+
+        if (mounted) {
+          setUser(userProfile)
+          setError(null)
+          console.log("User authenticated:", userProfile.email, "Role:", userProfile.role)
         }
       } catch (err) {
-        console.error("Auth error:", err)
+        console.error("Auth check error:", err)
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Erreur d'authentification")
-          router.push("/auth/login")
+          setError("Erreur d'authentification")
         }
       } finally {
         if (mounted) {
@@ -94,10 +103,12 @@ export function useAuth(requiredRole?: string) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event)
+
       if (event === "SIGNED_OUT" || !session) {
         if (mounted) {
           setUser(null)
-          router.push("/auth/login")
+          setError(null)
         }
       } else if (event === "SIGNED_IN" && session) {
         checkAuth()
@@ -108,21 +119,7 @@ export function useAuth(requiredRole?: string) {
       mounted = false
       subscription.unsubscribe()
     }
-  }, [router, supabase, requiredRole])
+  }, [supabase])
 
   return { user, loading, error }
-}
-
-function getDashboardRoute(role: string): string {
-  switch (role) {
-    case "admin":
-      return "/admin"
-    case "rh":
-      return "/rh"
-    case "tuteur":
-      return "/tuteur"
-    case "stagiaire":
-    default:
-      return "/stagiaire"
-  }
 }
