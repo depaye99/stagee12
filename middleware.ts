@@ -12,7 +12,6 @@ export async function middleware(request: NextRequest) {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("⚠️ Supabase environment variables not configured")
     return response
   }
 
@@ -37,63 +36,36 @@ export async function middleware(request: NextRequest) {
 
     const pathname = request.nextUrl.pathname
 
-    // Routes qui ne nécessitent jamais d'authentification
+    // Routes publiques - pas d'authentification requise
     const publicRoutes = ["/", "/auth/login", "/auth/register"]
-    const publicApiRoutes = ["/api/auth/"]
-    const systemRoutes = ["/_next/", "/favicon", "/images/", "/public/"]
 
-    // Laisser passer les routes système
-    if (systemRoutes.some((route) => pathname.startsWith(route))) {
+    // Routes système - toujours autorisées
+    if (
+      pathname.startsWith("/_next/") ||
+      pathname.startsWith("/api/auth/") ||
+      pathname.includes("/favicon") ||
+      pathname.startsWith("/images/") ||
+      publicRoutes.includes(pathname)
+    ) {
       return response
     }
 
-    // Laisser passer les API d'authentification
-    if (publicApiRoutes.some((route) => pathname.startsWith(route))) {
-      return response
-    }
-
-    // Laisser passer les routes publiques
-    if (publicRoutes.includes(pathname)) {
-      return response
-    }
-
-    // Vérifier l'authentification pour toutes les autres routes
+    // Vérifier l'authentification pour les routes privées
     const {
       data: { user },
-      error,
     } = await supabase.auth.getUser()
 
-    if (error) {
-      console.warn("🔍 Middleware auth error:", error.message)
-    }
-
     if (!user) {
-      console.log("🚫 No user found, redirecting to login from:", pathname)
       const loginUrl = new URL("/auth/login", request.url)
       if (pathname !== "/auth/login") {
-        loginUrl.searchParams.set("redirectTo", pathname + request.nextUrl.search)
+        loginUrl.searchParams.set("redirectTo", pathname)
       }
       return NextResponse.redirect(loginUrl)
     }
 
-    console.log("✅ User authenticated in middleware:", user.email)
-
-    // Si utilisateur connecté et sur page de login/register, rediriger vers dashboard
-    if (pathname === "/auth/login" || pathname === "/auth/register") {
-      const redirectTo = request.nextUrl.searchParams.get("redirectTo")
-
-      if (redirectTo && redirectTo !== "/auth/login" && redirectTo !== "/auth/register" && redirectTo.startsWith("/")) {
-        console.log("🔄 Redirecting authenticated user to:", redirectTo)
-        return NextResponse.redirect(new URL(redirectTo, request.url))
-      }
-
-      console.log("🔄 Redirecting authenticated user to default dashboard")
-      return NextResponse.redirect(new URL("/stagiaire", request.url))
-    }
-
     return response
   } catch (error) {
-    console.error("💥 Middleware error:", error)
+    console.error("Middleware error:", error)
     return response
   }
 }
