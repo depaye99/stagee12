@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/layout/header"
-import { Users, FileText, Calendar, TrendingUp, Settings, UserPlus } from "lucide-react"
+import { Users, FileText, TrendingUp, Settings, UserPlus, Activity } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 
 interface DashboardStats {

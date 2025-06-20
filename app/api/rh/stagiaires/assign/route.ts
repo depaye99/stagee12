@@ -1,6 +1,22 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// Placeholder for the logStagiaireAction function.  This should be implemented
+// based on your actual logging requirements.
+async function logStagiaireAction(
+  request: NextRequest,
+  actionType: string,
+  userId: string,
+  stagiaireId: string,
+  details: any,
+) {
+  console.log(
+    `[LOG] User ${userId} performed action ${actionType} on stagiaire ${stagiaireId} with details:`,
+    details,
+  )
+  // In a real implementation, this function would write to a database or logging service.
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -13,7 +29,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    const { data: currentUser } = await supabase.from("users").select("role").eq("id", session.user.id).single()
+    const { data: currentUser } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
 
     if (!currentUser || !["rh", "admin"].includes(currentUser.role)) {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
@@ -64,6 +84,14 @@ export async function POST(request: NextRequest) {
 
     if (updateError) throw updateError
 
+    // Log the assignment of stagiaires
+    for (const stagiaireId of stagiaire_ids) {
+      await logStagiaireAction(request, "assign_tuteur", session.user.id, stagiaireId, {
+        tuteur_id: tuteur_id,
+        stagiaire_ids: stagiaire_ids, // Corrected this line
+      })
+    }
+
     return NextResponse.json({
       success: true,
       data: updatedStagiaires,
@@ -88,7 +116,11 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    const { data: currentUser } = await supabase.from("users").select("role").eq("id", session.user.id).single()
+    const { data: currentUser } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
 
     if (!currentUser || !["rh", "admin"].includes(currentUser.role)) {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
@@ -110,6 +142,11 @@ export async function DELETE(request: NextRequest) {
       .single()
 
     if (error) throw error
+
+    // Logger l'assignation du stagiaire
+    await logStagiaireAction(request, "unassign_tuteur", session.user.id, stagiaireId, {
+      stagiaire_id: stagiaireId,
+    })
 
     return NextResponse.json({
       success: true,

@@ -1,6 +1,33 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
+// Fonction utilitaire pour enregistrer les actions dans la base de données
+async function logAuthAction(
+  request: NextRequest,
+  action: string,
+  userId: string | undefined,
+  details: object = {},
+) {
+  try {
+    const supabase = await createClient()
+    const ip = request.headers.get("x-real-ip") || request.ip
+    const userAgent = request.headers.get("user-agent")
+
+    await supabase.from("user_actions_log").insert([
+      {
+        user_id: userId,
+        action_type: action,
+        timestamp: new Date().toISOString(),
+        ip_address: ip,
+        user_agent: userAgent,
+        details: details,
+      },
+    ])
+  } catch (error) {
+    console.error("Error logging user action:", error)
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
@@ -23,6 +50,11 @@ export async function POST(request: NextRequest) {
 
       // Messages d'erreur personnalisés
       if (authError.message.includes("Invalid login credentials")) {
+        // Logger la tentative de connexion échouée
+        await logAuthAction(request, 'login_failed', undefined, {
+          email,
+          reason: 'invalid_credentials'
+        })
         return NextResponse.json(
           {
             error: `Identifiants invalides pour ${email}. Vérifiez votre email et mot de passe, ou créez un compte si vous n'en avez pas.`,
@@ -58,7 +90,7 @@ export async function POST(request: NextRequest) {
         .select("*")
         .eq("id", authData.user.id)
         .single()
-      
+
       if (!fetchError && existingProfile) {
         profile = existingProfile
         console.log("Existing profile found:", profile.email, "role:", profile.role)
@@ -72,10 +104,10 @@ export async function POST(request: NextRequest) {
     // Si le profil n'existe pas, utiliser un profil basique basé sur les métadonnées
     if (!profile) {
       console.log("No profile found, using auth metadata for user:", authData.user.email)
-      
+
       const userRole = authData.user.user_metadata?.role || "stagiaire"
       console.log("User metadata role:", userRole)
-      
+
       // Créer un profil basique sans toucher à la base de données
       profile = {
         id: authData.user.id,
@@ -87,7 +119,7 @@ export async function POST(request: NextRequest) {
         position: authData.user.user_metadata?.position,
         is_active: true,
       }
-      
+
       console.log("Using metadata-based profile:", profile)
     }
 
@@ -148,7 +180,7 @@ export async function POST(request: NextRequest) {
         path: '/',
         maxAge: authData.session.expires_in,
       })
-      
+
       response.cookies.set('sb-refresh-token', authData.session.refresh_token, {
         httpOnly: false,
         secure: process.env.NODE_ENV === 'production',
@@ -157,6 +189,12 @@ export async function POST(request: NextRequest) {
         maxAge: 60 * 60 * 24 * 7, // 7 jours
       })
     }
+
+    // Logger la connexion réussie
+    await logAuthAction(request, 'login', finalUserData.id, {
+      user_name: finalUserData.name,
+      user_role: finalUserData.role
+    })
 
     return response
   } catch (error) {
