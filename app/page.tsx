@@ -1,20 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Users, FileText, Calendar, TrendingUp, ArrowRight, CheckCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
-
-interface User {
-  id: string
-  email: string
-  name: string
-  role: string
-}
 
 interface Stats {
   stagiaires_total: number
@@ -24,50 +15,10 @@ interface Stats {
 }
 
 export default function HomePage() {
-  const [user, setUser] = useState<User | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const router = useRouter()
-  const supabase = createClient()
 
   useEffect(() => {
-    const checkUser = async () => {
-      try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession()
-
-        if (session?.user) {
-          // Récupérer les informations utilisateur complètes
-          const { data: userData } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-
-          if (userData) {
-            setUser(userData)
-
-            // Rediriger vers le dashboard approprié
-            switch (userData.role) {
-              case "admin":
-                router.push("/admin")
-                return
-              case "rh":
-                router.push("/rh")
-                return
-              case "tuteur":
-                router.push("/tuteur")
-                return
-              case "stagiaire":
-                router.push("/stagiaire")
-                return
-            }
-          }
-        }
-      } catch (error) {
-        console.error("Erreur lors de la vérification de l'utilisateur:", error)
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
     const fetchStats = async () => {
       try {
         const response = await fetch("/api/statistics")
@@ -77,12 +28,13 @@ export default function HomePage() {
         }
       } catch (error) {
         console.error("Erreur lors du chargement des statistiques:", error)
+      } finally {
+        setIsLoading(false)
       }
     }
 
-    checkUser()
     fetchStats()
-  }, [router, supabase])
+  }, [])
 
   if (isLoading) {
     return (
