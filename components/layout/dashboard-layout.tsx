@@ -1,7 +1,10 @@
 "use client"
 
 import type React from "react"
-import { useAuth } from "@/hooks/use-auth"
+
+import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 import { Header } from "@/components/layout/header"
 import { Loader2 } from "lucide-react"
 
@@ -11,40 +14,69 @@ interface DashboardLayoutProps {
 }
 
 export function DashboardLayout({ children, requiredRole }: DashboardLayoutProps) {
-  const { user, loading, error } = useAuth(requiredRole)
+  const [isLoading, setIsLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const router = useRouter()
+  const supabase = createClient()
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-blue-600" />
-          <p className="mt-2 text-sm text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    )
-  }
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-  if (error) {
+        if (!session) {
+          router.push("/auth/login")
+          return
+        }
+
+        // Récupérer les informations utilisateur
+        const { data: userData } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+
+        if (!userData) {
+          router.push("/auth/login")
+          return
+        }
+
+        // Vérifier le rôle si requis
+        if (requiredRole && userData.role !== requiredRole) {
+          // Rediriger vers le dashboard approprié
+          const dashboardRoute =
+            userData.role === "admin"
+              ? "/admin"
+              : userData.role === "rh"
+                ? "/rh"
+                : userData.role === "tuteur"
+                  ? "/tuteur"
+                  : "/stagiaire"
+
+          router.push(dashboardRoute)
+          return
+        }
+
+        setUser(userData)
+      } catch (error) {
+        console.error("Auth check error:", error)
+        router.push("/auth/login")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    checkAuth()
+  }, [router, supabase, requiredRole])
+
+  if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-red-600">{error}</p>
-          <button onClick={() => (window.location.href = "/auth/login")} className="mt-2 text-blue-600 hover:underline">
-            Se reconnecter
-          </button>
-        </div>
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     )
   }
 
   if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <p className="text-gray-600">Redirection vers la connexion...</p>
-        </div>
-      </div>
-    )
+    return null
   }
 
   return (

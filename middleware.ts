@@ -8,36 +8,10 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  const pathname = request.nextUrl.pathname
-
-  // Routes qui ne nécessitent JAMAIS d'authentification
-  const publicPaths = [
-    "/",
-    "/auth/login",
-    "/auth/register",
-    "/api/auth/login",
-    "/api/auth/register",
-    "/api/auth/logout",
-    "/api/statistics", // API publique
-    "/_next",
-    "/favicon",
-    "/images",
-    "/public",
-  ]
-
-  // Vérifier si c'est une route publique
-  const isPublicPath = publicPaths.some((path) => pathname === path || pathname.startsWith(path))
-
-  if (isPublicPath) {
-    return response
-  }
-
-  // Configuration Supabase
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("⚠️ Supabase not configured, allowing access")
     return response
   }
 
@@ -60,20 +34,33 @@ export async function middleware(request: NextRequest) {
       },
     })
 
-    // Vérifier l'authentification
+    const pathname = request.nextUrl.pathname
+
+    // Routes publiques - pas d'authentification requise
+    const publicRoutes = ["/", "/auth/login", "/auth/register"]
+
+    // Routes système - toujours autorisées
+    if (
+      pathname.startsWith("/_next/") ||
+      pathname.startsWith("/api/auth/") ||
+      pathname.includes("/favicon") ||
+      pathname.startsWith("/images/") ||
+      publicRoutes.includes(pathname)
+    ) {
+      return response
+    }
+
+    // Vérifier l'authentification pour les routes privées
     const {
       data: { user },
     } = await supabase.auth.getUser()
 
-    // Si pas d'utilisateur, rediriger vers login
     if (!user) {
       const loginUrl = new URL("/auth/login", request.url)
+      if (pathname !== "/auth/login") {
+        loginUrl.searchParams.set("redirectTo", pathname)
+      }
       return NextResponse.redirect(loginUrl)
-    }
-
-    // Si utilisateur connecté sur page de login, rediriger vers dashboard
-    if (pathname === "/auth/login" || pathname === "/auth/register") {
-      return NextResponse.redirect(new URL("/stagiaire", request.url))
     }
 
     return response
