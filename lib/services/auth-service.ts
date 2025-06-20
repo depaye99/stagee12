@@ -239,6 +239,17 @@ class AuthService {
 
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
+      // Vérifier d'abord la session locale
+      const {
+        data: { session },
+        error: sessionError,
+      } = await this.supabase.auth.getSession()
+      
+      if (sessionError || !session) {
+        console.log("No valid session found")
+        return null
+      }
+
       const {
         data: { user },
         error,

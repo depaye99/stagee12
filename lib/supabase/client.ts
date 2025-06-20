@@ -18,6 +18,13 @@ export function createClient() {
         persistSession: true,
         detectSessionInUrl: true,
         flowType: "pkce",
+        autoRefreshToken: true,
+        storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+      },
+      global: {
+        headers: {
+          'X-Client-Info': 'supabase-js-web',
+        },
       },
     })
   }

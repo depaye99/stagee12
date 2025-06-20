@@ -25,10 +25,19 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
+          // S'assurer que les cookies de session sont correctement configurés
+          const cookieOptions = {
+            ...options,
+            httpOnly: false, // Permettre l'accès côté client pour l'auth
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'lax' as const,
+            path: '/',
+          }
+          
           request.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           })
           response = NextResponse.next({
             request: {
@@ -38,14 +47,19 @@ export async function middleware(request: NextRequest) {
           response.cookies.set({
             name,
             value,
-            ...options,
+            ...cookieOptions,
           })
         },
         remove(name: string, options: CookieOptions) {
+          const cookieOptions = {
+            ...options,
+            path: '/',
+          }
+          
           request.cookies.set({
             name,
             value: "",
-            ...options,
+            ...cookieOptions,
           })
           response = NextResponse.next({
             request: {
@@ -55,7 +69,7 @@ export async function middleware(request: NextRequest) {
           response.cookies.set({
             name,
             value: "",
-            ...options,
+            ...cookieOptions,
           })
         },
       },
@@ -80,6 +94,11 @@ export async function middleware(request: NextRequest) {
 
     if (userError) {
       console.warn("Middleware user error:", userError)
+      // Si erreur de session sur route protégée, rediriger vers login
+      if (!isPublicRoute) {
+        const loginUrl = new URL("/auth/login", request.url)
+        return NextResponse.redirect(loginUrl)
+      }
     }
 
     // Si pas d'utilisateur et route privée, rediriger vers login

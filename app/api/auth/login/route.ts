@@ -130,13 +130,35 @@ export async function POST(request: NextRequest) {
         redirectPath = "/stagiaire"
     }
 
-    return NextResponse.json({
+    // Créer une réponse avec les cookies de session appropriés
+    const response = NextResponse.json({
       success: true,
       user: finalUserData,
       session: authData.session,
       message: "Connexion réussie",
       redirectTo: redirectPath,
     })
+
+    // S'assurer que les cookies de session sont bien définis
+    if (authData.session) {
+      response.cookies.set('sb-access-token', authData.session.access_token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: authData.session.expires_in,
+      })
+      
+      response.cookies.set('sb-refresh-token', authData.session.refresh_token, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 7, // 7 jours
+      })
+    }
+
+    return response
   } catch (error) {
     console.error("Login error:", error)
     return NextResponse.json({ error: "Erreur serveur lors de la connexion" }, { status: 500 })
