@@ -114,12 +114,21 @@ export async function POST(request: NextRequest) {
 
     console.log("Login successful for user:", finalUserData.email, "with role:", finalUserData.role)
 
-    // Déterminer l'URL de redirection
-    const redirectPath = 
-      finalUserData.role === "admin" ? "/admin" :
-      finalUserData.role === "rh" ? "/rh" :
-      finalUserData.role === "tuteur" ? "/tuteur" :
-      "/stagiaire"
+    // Déterminer l'URL de redirection basée sur le rôle
+    let redirectPath = "/stagiaire"
+    switch (finalUserData.role) {
+      case "admin":
+        redirectPath = "/admin"
+        break
+      case "rh":
+        redirectPath = "/rh"
+        break
+      case "tuteur":
+        redirectPath = "/tuteur"
+        break
+      default:
+        redirectPath = "/stagiaire"
+    }
 
     return NextResponse.json({
       success: true,

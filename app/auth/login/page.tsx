@@ -67,15 +67,47 @@ function LoginForm() {
         description: "Redirection en cours...",
       })
 
-      // Redirection immédiate après succès
-      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register') {
-        console.log("Redirecting to:", redirectTo)
-        window.location.href = redirectTo
-      } else {
-        const userRole = data.user?.role || "stagiaire"
-        console.log("User role for redirection:", userRole)
+      // Redirection après succès
+      const userRole = data.user?.role || "stagiaire"
+      console.log("User role for redirection:", userRole)
 
-        let targetPath = "/stagiaire"
+      let targetPath = "/stagiaire"
+      
+      // Vérifier si on a un redirectTo valide
+      if (redirectTo && 
+          redirectTo !== '/auth/login' && 
+          redirectTo !== '/auth/register' && 
+          redirectTo !== '/' &&
+          !redirectTo.includes('/auth/') &&
+          redirectTo.startsWith('/')) {
+        
+        // Vérifier que la route correspond au rôle de l'utilisateur
+        const isValidRoute = 
+          (userRole === "admin" && redirectTo.startsWith("/admin")) ||
+          (userRole === "rh" && redirectTo.startsWith("/rh")) ||
+          (userRole === "tuteur" && redirectTo.startsWith("/tuteur")) ||
+          (userRole === "stagiaire" && redirectTo.startsWith("/stagiaire"))
+        
+        if (isValidRoute) {
+          targetPath = redirectTo
+        } else {
+          // Si la route ne correspond pas au rôle, rediriger vers le dashboard approprié
+          switch (userRole) {
+            case "admin":
+              targetPath = "/admin"
+              break
+            case "rh":
+              targetPath = "/rh"
+              break
+            case "tuteur":
+              targetPath = "/tuteur"
+              break
+            default:
+              targetPath = "/stagiaire"
+          }
+        }
+      } else {
+        // Pas de redirectTo valide, utiliser le dashboard par défaut
         switch (userRole) {
           case "admin":
             targetPath = "/admin"
@@ -86,11 +118,13 @@ function LoginForm() {
           case "tuteur":
             targetPath = "/tuteur"
             break
+          default:
+            targetPath = "/stagiaire"
         }
-
-        console.log("Redirecting to:", targetPath)
-        window.location.href = targetPath
       }
+
+      console.log("Redirecting to:", targetPath)
+      window.location.href = targetPath
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Erreur de connexion"
       console.error("Login error:", error)

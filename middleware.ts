@@ -94,22 +94,27 @@ export async function middleware(request: NextRequest) {
 
     // Si utilisateur connecté et sur page de login, rediriger vers dashboard
     if (user && (request.nextUrl.pathname === "/auth/login" || request.nextUrl.pathname === "/auth/register")) {
-      // Vérifier s'il y a un paramètre redirectTo
+      // Vérifier s'il y a un paramètre redirectTo valide
       const redirectTo = request.nextUrl.searchParams.get('redirectTo')
       
-      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register' && redirectTo !== '/') {
+      if (redirectTo && 
+          redirectTo !== '/auth/login' && 
+          redirectTo !== '/auth/register' && 
+          redirectTo !== '/' &&
+          !redirectTo.includes('/auth/') &&
+          redirectTo.startsWith('/')) {
         console.log("User already logged in, redirecting to requested page:", redirectTo)
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Récupérer le rôle depuis la base de données avec timeout
+      // Récupérer le rôle utilisateur
       let userRole = "stagiaire"
       try {
-        // Éviter les requêtes DB répétées - utiliser les métadonnées d'abord
-        userRole = user.user_metadata?.role || "stagiaire"
-        
-        // Seulement faire la requête DB si nécessaire et pas de métadonnées
-        if (!user.user_metadata?.role) {
+        // Essayer d'abord les métadonnées
+        if (user.user_metadata?.role) {
+          userRole = user.user_metadata.role
+        } else {
+          // Requête DB avec timeout court
           const { data: userData, error: roleError } = await supabase
             .from("users")
             .select("role")
@@ -126,11 +131,22 @@ export async function middleware(request: NextRequest) {
       }
 
       console.log("User already logged in with role:", userRole, "redirecting to dashboard")
-      const dashboardRoute =
-        userRole === "admin" ? "/admin" : 
-        userRole === "rh" ? "/rh" : 
-        userRole === "tuteur" ? "/tuteur" : 
-        "/stagiaire"
+      
+      // Déterminer la route de redirection basée sur le rôle
+      let dashboardRoute = "/stagiaire"
+      switch (userRole) {
+        case "admin":
+          dashboardRoute = "/admin"
+          break
+        case "rh":
+          dashboardRoute = "/rh"
+          break
+        case "tuteur":
+          dashboardRoute = "/tuteur"
+          break
+        default:
+          dashboardRoute = "/stagiaire"
+      }
       
       return NextResponse.redirect(new URL(dashboardRoute, request.url))
     }
