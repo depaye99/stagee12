@@ -1,3 +1,4 @@
+
 // Types de base pour les rôles utilisateur
 export type UserRole = "admin" | "rh" | "tuteur" | "stagiaire"
 
@@ -7,31 +8,56 @@ export type DemandeStatus = "en_attente" | "approuvee" | "rejetee" | "en_cours" 
 // Types de demandes
 export type DemandeType = "stage_academique" | "stage_professionnel" | "conge" | "prolongation" | "attestation"
 
-// Interface User
+// Types pour le workflow
+export type WorkflowStep = "stagiaire" | "tuteur" | "rh" | "finance" | "termine"
+export type WorkflowAction = "approve" | "reject" | "request_changes" | "pending"
+
+// Interface User - mise à jour selon le script SQL
 export interface User {
   id: string
   email: string
   name: string
+  first_name?: string
+  last_name?: string
   role: UserRole
   phone?: string
   address?: string
   department?: string
   position?: string
   avatar_url?: string
+  company: string
   is_active: boolean
+  last_login?: string
   created_at: string
   updated_at: string
-  last_login?: string
 }
 
 // Interface UserProfile (pour les données publiques)
 export interface UserProfile {
   id: string
   name: string
+  first_name?: string
+  last_name?: string
   role: UserRole
   department?: string
   position?: string
   avatar_url?: string
+  company: string
+}
+
+// Interface Tuteur - nouvelle table
+export interface Tuteur {
+  id: string
+  user_id: string
+  specialite?: string
+  max_stagiaires: number
+  created_at: string
+  updated_at: string
+}
+
+// Interface Tuteur avec relations
+export interface TuteurWithUser extends Tuteur {
+  users?: User
 }
 
 // Interface Stagiaire
@@ -78,13 +104,32 @@ export interface DemandeWithRelations extends Demande {
   tuteur?: User
 }
 
-// Interface Document
+// Interface DemandeWorkflow - nouvelle table
+export interface DemandeWorkflow {
+  id: string
+  demande_id: string
+  step: WorkflowStep
+  user_id: string
+  action: WorkflowAction
+  comments?: string
+  created_at: string
+}
+
+// Interface DemandeWorkflow avec relations
+export interface DemandeWorkflowWithRelations extends DemandeWorkflow {
+  demandes?: Demande
+  users?: User
+}
+
+// Interface Document - mise à jour
 export interface Document {
   id: string
   nom: string
   type: string
   taille: number
   url: string
+  chemin?: string
+  statut?: string
   user_id: string
   demande_id?: string
   is_public: boolean
@@ -98,7 +143,25 @@ export interface DocumentWithRelations extends Document {
   demandes?: Demande
 }
 
-// Interface Evaluation
+// Interface FileUpload - nouvelle table
+export interface FileUpload {
+  id: string
+  name: string
+  type: string
+  size: number
+  url: string
+  user_id: string
+  demande_id: string
+  created_at: string
+}
+
+// Interface FileUpload avec relations
+export interface FileUploadWithRelations extends FileUpload {
+  users?: User
+  demandes?: Demande
+}
+
+// Interface Evaluation - mise à jour avec DECIMAL
 export interface Evaluation {
   id: string
   stagiaire_id: string
@@ -145,20 +208,68 @@ export interface Template {
   contenu: string
   variables: string[]
   is_active: boolean
-  created_by: string
+  created_by?: string
   created_at: string
   updated_at: string
 }
 
+// Interface Template avec relations
+export interface TemplateWithRelations extends Template {
+  creator?: User
+}
+
+// Interface SystemSettings - nouvelle table
+export interface SystemSettings {
+  id: number
+  app_name: string
+  app_description: string
+  company_name: string
+  max_file_size: number
+  allowed_file_types: string[]
+  email_notifications: boolean
+  auto_approve_requests: boolean
+  backup_enabled: boolean
+  maintenance_mode: boolean
+  created_at: string
+  updated_at: string
+}
+
+// Interface UserActionsLog - nouvelle table
+export interface UserActionsLog {
+  id: string
+  user_id?: string
+  action: string
+  details?: any
+  ip_address?: string
+  user_agent?: string
+  created_at: string
+}
+
+// Interface UserActionsLog avec relations
+export interface UserActionsLogWithRelations extends UserActionsLog {
+  users?: User
+}
+
 // Types pour les statistiques du dashboard
 export interface DashboardStats {
+  users_total: number
   stagiaires_total: number
-  stagiaires_actifs: number
-  demandes_en_attente: number
+  tuteurs_total: number
   demandes_total: number
+  demandes_en_attente: number
+  demandes_approuvees: number
   documents_total: number
   evaluations_total: number
-  notifications_non_lues: number
+}
+
+// Types Bridge Technologies spécifiques
+export interface BridgeStats {
+  stagiaires_actifs: number
+  tuteurs_actifs: number
+  rh_actifs: number
+  admin_actifs: number
+  total_employees_actifs: number
+  total_employees: number
 }
 
 // Types pour les réponses API
@@ -184,6 +295,7 @@ export interface FilterOptions {
   type?: string
   department?: string
   role?: UserRole
+  company?: string
   dateRange?: {
     start: string
     end: string
@@ -215,7 +327,7 @@ export interface Metadata {
   hasPrev: boolean
 }
 
-// Database type pour Supabase
+// Database type pour Supabase - mise à jour complète
 export interface Database {
   public: {
     Tables: {
@@ -223,6 +335,11 @@ export interface Database {
         Row: User
         Insert: Omit<User, "id" | "created_at" | "updated_at">
         Update: Partial<Omit<User, "id" | "created_at">>
+      }
+      tuteurs: {
+        Row: Tuteur
+        Insert: Omit<Tuteur, "id" | "created_at" | "updated_at">
+        Update: Partial<Omit<Tuteur, "id" | "created_at">>
       }
       stagiaires: {
         Row: Stagiaire
@@ -234,10 +351,20 @@ export interface Database {
         Insert: Omit<Demande, "id" | "created_at" | "updated_at">
         Update: Partial<Omit<Demande, "id" | "created_at">>
       }
+      demandes_workflow: {
+        Row: DemandeWorkflow
+        Insert: Omit<DemandeWorkflow, "id" | "created_at">
+        Update: Partial<Omit<DemandeWorkflow, "id" | "created_at">>
+      }
       documents: {
         Row: Document
         Insert: Omit<Document, "id" | "created_at" | "updated_at">
         Update: Partial<Omit<Document, "id" | "created_at">>
+      }
+      file_uploads: {
+        Row: FileUpload
+        Insert: Omit<FileUpload, "id" | "created_at">
+        Update: Partial<Omit<FileUpload, "id" | "created_at">>
       }
       evaluations: {
         Row: Evaluation
@@ -254,17 +381,44 @@ export interface Database {
         Insert: Omit<Template, "id" | "created_at" | "updated_at">
         Update: Partial<Omit<Template, "id" | "created_at">>
       }
+      system_settings: {
+        Row: SystemSettings
+        Insert: Omit<SystemSettings, "id" | "created_at" | "updated_at">
+        Update: Partial<Omit<SystemSettings, "id" | "created_at">>
+      }
+      user_actions_log: {
+        Row: UserActionsLog
+        Insert: Omit<UserActionsLog, "id" | "created_at">
+        Update: Partial<Omit<UserActionsLog, "id" | "created_at">>
+      }
     }
     Views: {
-      [_ in never]: never
+      bridge_stats: {
+        Row: BridgeStats
+      }
+      dashboard_stats: {
+        Row: {
+          stagiaires_actifs: number
+          demandes_en_attente: number
+          demandes_approuvees: number
+          demandes_rejetees: number
+          documents_total: number
+          evaluations_total: number
+        }
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_bridge_dashboard_stats: {
+        Args: {}
+        Returns: DashboardStats[]
+      }
     }
     Enums: {
       user_role: UserRole
       demande_status: DemandeStatus
       demande_type: DemandeType
+      workflow_step: WorkflowStep
+      workflow_action: WorkflowAction
     }
   }
 }
