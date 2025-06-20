@@ -249,6 +249,10 @@ export default function RHStagiairesPage() {
                 <Plus className="mr-2 h-4 w-4" />
                 Nouveau stagiaire
               </Button>
+              <Button variant="outline" onClick={() => router.push("/rh/stagiaires/assigner")}>
+                <Users className="mr-2 h-4 w-4" />
+                Assigner tuteurs
+              </Button>
               <Button variant="outline" onClick={() => router.push("/rh/stagiaires/import")}>
                 <FileText className="mr-2 h-4 w-4" />
                 Importer
