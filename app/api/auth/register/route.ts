@@ -47,22 +47,25 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer le profil utilisateur dans notre table users
-    const { error: profileError } = await supabase.from("users").insert([
-      {
-        id: authData.user.id,
-        email: authData.user.email!,
-        name: `${prenom} ${nom}`,
-        role: (role as UserRole) || "stagiaire",
-        phone: telephone || null,
-        is_active: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-    ])
+    // Utiliser un trigger dans la base de données ou attendre la confirmation
+    if (authData.user.email_confirmed_at) {
+      const { error: profileError } = await supabase.from("users").insert([
+        {
+          id: authData.user.id,
+          email: authData.user.email!,
+          name: `${prenom} ${nom}`,
+          role: (role as UserRole) || "stagiaire",
+          phone: telephone || null,
+          is_active: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
 
-    if (profileError) {
-      console.error("Profile creation error:", profileError)
-      // Ne pas échouer si le profil n'est pas créé
+      if (profileError) {
+        console.error("Profile creation error:", profileError)
+        // Continuer même si le profil n'est pas créé immédiatement
+      }
     }
 
     return NextResponse.json({

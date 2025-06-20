@@ -18,8 +18,28 @@ export interface AuthState {
   error: string | null
 }
 
+import { createClient } from '@/lib/supabase/client'
+import type { User } from '@supabase/supabase-js'
+import type { UserRole } from '@/lib/supabase/database.types'
+
+interface AuthUser extends User {
+  role: UserRole
+  profile: {
+    name: string
+    department?: string
+    position?: string
+    avatar_url?: string
+  }
+}
+
+interface AuthState {
+  user: AuthUser | null
+  loading: boolean
+  error: string | null
+}
+
 class AuthService {
-  private supabase = createClientComponentClient()
+  private supabase = createClient()
   private listeners: Set<(state: AuthState) => void> = new Set()
   private currentState: AuthState = {
     user: null,
