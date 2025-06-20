@@ -1,0 +1,108 @@
+Cahier des charges
+Application Web de Gestion des Stagiaires avec Demandes en Ligne
+________________________________________
+1. Présentation du projet
+Titre : Plateforme de gestion des stagiaires
+Objet : Concevoir et développer une application web permettant de gérer l’ensemble du cycle de vie des stagiaires (création de dossiers, suivi administratif, évaluation) et de faciliter la soumission et le traitement des demandes en ligne (convention, prolongation, congé, etc.).
+________________________________________
+2. Contexte et enjeux
+•	Contexte organisationnel :
+o	Plusieurs services (IT, RH, encadrants, finance, etc.) collaborent pour recruter et suivre les stagiaires.
+o	Processus actuels souvent manuels (Excel, e mails), source d’erreurs et de perte de temps.
+•	Enjeux :
+o	Fiabiliser et centraliser les informations.
+o	Gagner en réactivité (statuts de demandes en temps réel).
+o	Gouvernance : traçabilité des actions et des échanges.
+________________________________________
+3. Objectifs
+•	Optimiser le parcours administratif du stagiaire.
+•	Automatiser le workflow de validation des demandes.
+•	Sécuriser l’accès et la conservation des données personnelles.
+•	Offrir une interface simple pour tous les profils (stagiaires, tuteurs, IT, RH, finance).
+•	Faciliter la génération automatique de documents (conventions, attestations).
+
+________________________________________
+
+
+4. Périmètre fonctionnel
+Module	Fonctions principales
+Gestion des profils	Création/modification des comptes (stagiaire, tuteur, RH)
+Tableau de bord	Vue synthétique : nombre total de stagiaires, nombre de stagiaires en cours, nombre de stagiaires par mois, demandes en cours, etc.
+Gestion des stagiaires	Création fiche stagiaire, historique des activités, pièces jointes, planning
+Workflow de demandes	Dépôt, validation, rejet ou mise en attente de demandes
+Documents & modèles	Génération PDF : conventions, attestations, rapports
+Notifications	E mails et alertes internes/externes sur statut de demande et envoi d’attestation
+Recherche & filtres	Filtrage par nom, service, période, statut, etc.
+Reporting	Export CSV/Excel, graphiques sur indicateurs clés
+________________________________________
+5. Exigences fonctionnelles détaillées
+5.1. Authentification & sécurité
+•	Gestion interne (email + mot de passe) avec vérification de l’email.
+•	Gestion des rôles :
+o	Stagiaire : dépôt et suivi des demandes.
+o	Tuteur : examen et validation des demandes de son équipe.
+o	RH/Finance : vue globale, validation finale, édition des documents.
+5.2. Workflow de demandes
+Pour chaque type de demande (convention, prolongation, congé…) :
+1.	Stagiaire saisit formulaire en ligne + pièces (PDF, images).
+2.	Notification au tuteur pour validation.
+3.	Si validé → envoi à RH/Finance.
+4.	Statut accessible à tout moment et historique des échanges.
+5.3. Gestion documentaire
+•	Bibliothèque de modèles Word/PDF paramétrables.
+•	Génération automatique via fusion de données.
+•	Archivage des documents validés.
+5.4. Reporting et exports
+•	Tableaux de bord interactifs (nombre de stagiaires actifs, demandes par mois…).
+•	Exports CSV/Excel et PDF.
+•	Possibilité d’intégrer un module de visualisation de données (graphes simples).
+________________________________________
+6. Exigences non fonctionnelles
+Domaine	Exigence
+Performance	Temps de réponse < 2 s (pages courantes)
+Sécurité	HTTPS obligatoire, chiffrement des données sensibles
+Compatibilité	Navigateurs récents (Chrome, Firefox, Edge, Safari), mobile, tablettes
+Scalabilité	Support de 50 utilisateurs simultanés
+Maintenance	Code modulaire, tests unitaires (> 80 % de couverture)
+Sauvegarde	Back ups journaliers et restauration sous 24 h
+________________________________________
+7. Contraintes techniques
+•	Framework : Nextjs (TypeScript)
+•	Librairies UI : Shadcn/UI + TailwindCSS
+•	State management : Zustand
+•	BaaS : Supabase (Base de données PostgreSQL + Authetification + Stockage des fichiers)
+•	Hébergement et CI/CD : Vercel
+________________________________________
+8. Livrables
+1.	Étude fonctionnelle détaillée
+2.	Spécifications techniques (architecture, schéma de données)
+3.	Maquettes UX/UI (wireframes + prototype)
+4.	Application en environnements dev, recette et production
+5.	Documentation utilisateur et guide d’installation
+6.	Plan de tests et rapports de recette
+________________________________________
+9. Macro-planning prévisionnel
+Phase	Durée estimée	Livrables clés
+1. Recueil des besoins	3 jours	Cahier des charges validé
+2. Conception	6 jours	Maquettes + spécifications techniques
+3. Développement	45 jours	Versions alpha, beta
+4. Tests & Recette	3 jours	Rapports de tests, homologation
+5. Déploiement & formation	3 jours	Go live, formation des utilisateurs
+Durée totale du projet	60 jours	
+________________________________________
+10. Budget et ressources
+•	Équipe projet :
+o	1 chef de projet
+o	2 développeurs front-end
+o	2 développeurs back-end
+o	1 UX/UI designer (Expérience Utilisateur/Interface Utilisateur)
+o	1 ingénieur QA (Assurance Qualité)
+•	Estimation budgétaire : à chiffrer selon TJM et durée projet
+________________________________________
+11. Critères d’acceptation
+•	Conformité fonctionnelle à 100 % du cahier des charges
+•	Performances validées en recette (tests de charge)
+•	Validation de l’ergonomie par un panel d’utilisateurs
+•	Couverture de tests unitaires ≥ 80 % et tests d’intégration réussis
+________________________________________
+
