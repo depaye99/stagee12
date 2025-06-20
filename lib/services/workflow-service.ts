@@ -1,4 +1,3 @@
-
 import { createClient } from "@/lib/supabase/client"
 import type { DemandeWorkflow, DemandeWorkflowWithRelations, ApiResponse, WorkflowStep, WorkflowAction } from "@/lib/supabase/database.types"
 import { BaseService } from "./base-service"

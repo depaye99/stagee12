@@ -105,4 +105,3 @@ ________________________________________
 •	Validation de l’ergonomie par un panel d’utilisateurs
 •	Couverture de tests unitaires ≥ 80 % et tests d’intégration réussis
 ________________________________________
-

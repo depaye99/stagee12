@@ -1,4 +1,3 @@
-
 import { createClient } from "@/lib/supabase/client"
 import type { Tuteur, TuteurWithUser, ApiResponse, PaginatedResponse, FindOptions } from "@/lib/supabase/database.types"
 import { BaseService } from "./base-service"

@@ -1,4 +1,3 @@
-
 -- =====================================================
 -- SCRIPT DE PRODUCTION - BRIDGE TECHNOLOGIES
 -- Système de Gestion des Stagiaires

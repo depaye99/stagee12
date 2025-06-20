@@ -1,4 +1,3 @@
-
 // Types de base pour les rôles utilisateur
 export type UserRole = "admin" | "rh" | "tuteur" | "stagiaire"
 

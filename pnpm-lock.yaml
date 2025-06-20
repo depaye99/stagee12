@@ -93,7 +93,7 @@ importers:
         specifier: latest
         version: 1.2.7(@types/react-dom@19.0.0)(@types/react@19.0.0)(react-dom@19.0.0(react@19.0.0))(react@19.0.0)
       '@supabase/auth-helpers-nextjs':
-        specifier: ^0.10.0
+        specifier: latest
         version: 0.10.0(@supabase/supabase-js@2.50.0)
       '@supabase/ssr':
         specifier: latest
