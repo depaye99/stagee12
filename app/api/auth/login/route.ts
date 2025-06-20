@@ -53,26 +53,55 @@ export async function POST(request: NextRequest) {
     let profile = null
 
     try {
-      const { data: existingProfile } = await supabase.from("users").select("*").eq("id", authData.user.id).single()
-      profile = existingProfile
+      const { data: existingProfile, error: fetchError } = await supabase
+        .from("users")
+        .select("*")
+        .eq("id", authData.user.id)
+        .single()
+      
+      if (fetchError) {
+        if (fetchError.code === "PGRST116") {
+          console.log("Profile not found for user:", authData.user.id)
+        } else {
+          console.error("Database error fetching profile:", fetchError)
+        }
+      } else {
+        profile = existingProfile
+        console.log("Existing profile found:", profile.email, "role:", profile.role)
+      }
     } catch (error) {
-      console.log("Profile not found, will create one")
+      console.error("Exception fetching profile:", error)
     }
 
     // Si le profil n'existe pas, le créer
     if (!profile) {
+      console.log("Creating new profile for user:", authData.user.email)
+      
       try {
+        // D'abord, vérifier si l'utilisateur existe dans auth.users avec les bonnes métadonnées
+        const userRole = authData.user.user_metadata?.role || "stagiaire"
+        console.log("User metadata role:", userRole)
+        
         const newProfile = {
           id: authData.user.id,
           email: authData.user.email!,
           name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-          role: authData.user.user_metadata?.role || "stagiaire",
+          role: userRole,
+          is_active: true,
         }
 
         // Ajouter les colonnes optionnelles si elles existent
         if (authData.user.user_metadata?.phone) {
           newProfile.phone = authData.user.user_metadata.phone
         }
+        if (authData.user.user_metadata?.department) {
+          newProfile.department = authData.user.user_metadata.department
+        }
+        if (authData.user.user_metadata?.position) {
+          newProfile.position = authData.user.user_metadata.position
+        }
+
+        console.log("Attempting to create profile:", newProfile)
 
         const { data: createdProfile, error: insertError } = await supabase
           .from("users")
@@ -81,16 +110,37 @@ export async function POST(request: NextRequest) {
           .single()
 
         if (insertError) {
-          console.error("Profile creation error:", insertError)
-          // Utiliser les données de base si la création échoue
-          profile = {
-            id: authData.user.id,
-            email: authData.user.email!,
-            name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
-            role: authData.user.user_metadata?.role || "stagiaire",
+          console.error("Profile creation error details:", {
+            code: insertError.code,
+            message: insertError.message,
+            details: insertError.details,
+            hint: insertError.hint
+          })
+          
+          // Essayer de récupérer le profil au cas où il aurait été créé entre temps
+          const { data: retryProfile } = await supabase
+            .from("users")
+            .select("*")
+            .eq("id", authData.user.id)
+            .single()
+          
+          if (retryProfile) {
+            profile = retryProfile
+            console.log("Profile found on retry:", profile)
+          } else {
+            // Utiliser les données de base si la création échoue
+            profile = {
+              id: authData.user.id,
+              email: authData.user.email!,
+              name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
+              role: userRole,
+              is_active: true,
+            }
+            console.log("Using fallback profile:", profile)
           }
         } else {
           profile = createdProfile
+          console.log("Profile created successfully:", profile)
         }
       } catch (profileError) {
         console.error("Profile creation exception:", profileError)
@@ -100,7 +150,9 @@ export async function POST(request: NextRequest) {
           email: authData.user.email!,
           name: authData.user.user_metadata?.name || authData.user.email!.split("@")[0],
           role: authData.user.user_metadata?.role || "stagiaire",
+          is_active: true,
         }
+        console.log("Using exception fallback profile:", profile)
       }
     }
 

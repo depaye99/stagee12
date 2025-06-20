@@ -140,18 +140,27 @@ class AuthService {
 
   private async createUserProfileSafe(authUser: any, userData?: any): Promise<AuthUser> {
     try {
+      console.log("createUserProfileSafe called for:", authUser.email)
+      console.log("Auth user metadata:", authUser.user_metadata)
+      console.log("Provided userData:", userData)
+      
       // Vérifier d'abord si le profil existe déjà
       const existingProfile = await this.getUserProfile(authUser.id)
       if (existingProfile) {
+        console.log("Found existing profile:", existingProfile)
         return existingProfile
       }
 
       // Start with basic required fields only
+      const userRole = (userData?.role || authUser.user_metadata?.role) as UserRole || "stagiaire"
+      console.log("Determined user role:", userRole)
+      
       const basicProfile = {
         id: authUser.id,
         email: authUser.email!,
         name: userData?.name || authUser.user_metadata?.name || authUser.email!.split("@")[0],
-        role: ((userData?.role || authUser.user_metadata?.role) as UserRole) || "stagiaire",
+        role: userRole,
+        is_active: true,
       }
 
       // Try to insert with basic fields first
