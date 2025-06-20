@@ -247,13 +247,20 @@ class AuthService {
 
       if (!user) return null
 
-      // Toujours récupérer le profil depuis la base de données pour avoir le rôle correct
+      // Essayer de récupérer le profil, mais ne pas le créer automatiquement
+      // pour éviter les boucles infinies
       const profile = await this.getUserProfile(user.id)
       
-      // Si le profil n'existe pas, le créer
       if (!profile) {
-        console.log("Profile not found for authenticated user, creating...")
-        return await this.createUserProfileSafe(user)
+        // Retourner un profil basique basé sur les métadonnées auth
+        return {
+          id: user.id,
+          email: user.email!,
+          role: (user.user_metadata?.role as UserRole) || "stagiaire",
+          name: user.user_metadata?.name || user.email!.split("@")[0],
+          phone: user.user_metadata?.phone,
+          email_confirmed: !!user.email_confirmed_at,
+        }
       }
 
       return profile

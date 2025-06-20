@@ -102,25 +102,27 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Récupérer le rôle depuis la base de données (plus fiable)
+      // Récupérer le rôle depuis la base de données avec timeout
       let userRole = "stagiaire"
       try {
-        const { data: userData, error: roleError } = await supabase
-          .from("users")
-          .select("role")
-          .eq("id", user.id)
-          .single()
+        // Éviter les requêtes DB répétées - utiliser les métadonnées d'abord
+        userRole = user.user_metadata?.role || "stagiaire"
         
-        if (roleError) {
-          console.warn("Could not fetch user role from database:", roleError)
-          // Utiliser le rôle des métadonnées en fallback
-          userRole = user.user_metadata?.role || "stagiaire"
-        } else {
-          userRole = userData?.role || "stagiaire"
+        // Seulement faire la requête DB si nécessaire et pas de métadonnées
+        if (!user.user_metadata?.role) {
+          const { data: userData, error: roleError } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .single()
+          
+          if (!roleError && userData?.role) {
+            userRole = userData.role
+          }
         }
       } catch (error) {
-        console.warn("Database query failed:", error)
-        userRole = user.user_metadata?.role || "stagiaire"
+        console.warn("Database query failed, using fallback role:", error)
+        userRole = "stagiaire"
       }
 
       console.log("User already logged in with role:", userRole, "redirecting to dashboard")
