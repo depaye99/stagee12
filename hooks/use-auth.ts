@@ -27,59 +27,37 @@ export function useAuth(requiredRole?: string) {
       try {
         const {
           data: { session },
-          error: sessionError,
         } = await supabase.auth.getSession()
 
-        if (sessionError) {
-          throw sessionError
-        }
-
-        if (!session) {
-          if (mounted) {
-            router.push("/auth/login")
-          }
+        if (!session && mounted) {
+          setLoading(false)
           return
         }
 
-        // Récupérer les informations utilisateur depuis la base
-        const { data: userData, error: userError } = await supabase
-          .from("users")
-          .select("*")
-          .eq("id", session.user.id)
-          .single()
+        if (session?.user && mounted) {
+          // Récupérer les informations utilisateur
+          const { data: userData } = await supabase.from("users").select("*").eq("id", session.user.id).single()
 
-        if (userError || !userData) {
-          console.error("User data error:", userError)
-          if (mounted) {
-            router.push("/auth/login")
+          const userProfile = userData || {
+            id: session.user.id,
+            email: session.user.email!,
+            name: session.user.email!.split("@")[0],
+            role: "stagiaire",
           }
-          return
-        }
 
-        // Vérifier le rôle si requis
-        if (requiredRole && userData.role !== requiredRole) {
-          const dashboardRoute = getDashboardRoute(userData.role)
-          if (mounted) {
+          // Vérifier le rôle si requis
+          if (requiredRole && userProfile.role !== requiredRole) {
+            const dashboardRoute = getDashboardRoute(userProfile.role)
             router.push(dashboardRoute)
+            return
           }
-          return
-        }
 
-        if (mounted) {
-          setUser({
-            id: userData.id,
-            email: userData.email,
-            name: userData.name || userData.first_name || userData.email,
-            role: userData.role,
-            first_name: userData.first_name,
-            last_name: userData.last_name,
-          })
+          setUser(userProfile)
         }
       } catch (err) {
         console.error("Auth error:", err)
         if (mounted) {
-          setError(err instanceof Error ? err.message : "Erreur d'authentification")
-          router.push("/auth/login")
+          setError("Erreur d'authentification")
         }
       } finally {
         if (mounted) {
@@ -97,7 +75,6 @@ export function useAuth(requiredRole?: string) {
       if (event === "SIGNED_OUT" || !session) {
         if (mounted) {
           setUser(null)
-          router.push("/auth/login")
         }
       } else if (event === "SIGNED_IN" && session) {
         checkAuth()
