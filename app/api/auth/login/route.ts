@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
       console.warn("Failed to update last login:", updateError)
     }
 
-    // Préparer les données utilisateur finales
+    // Préparer les données utilisateur finales en s'assurant que le rôle vient de la DB
     const finalUserData = profile || {
       id: authData.user.id,
       email: authData.user.email,
@@ -125,13 +125,21 @@ export async function POST(request: NextRequest) {
       role: authData.user.user_metadata?.role || "stagiaire",
     }
 
-    console.log("Returning user data:", finalUserData)
+    console.log("Login successful for user:", finalUserData.email, "with role:", finalUserData.role)
+
+    // Déterminer l'URL de redirection
+    const redirectPath = 
+      finalUserData.role === "admin" ? "/admin" :
+      finalUserData.role === "rh" ? "/rh" :
+      finalUserData.role === "tuteur" ? "/tuteur" :
+      "/stagiaire"
 
     return NextResponse.json({
       success: true,
       user: finalUserData,
       session: authData.session,
       message: "Connexion réussie",
+      redirectTo: redirectPath,
     })
   } catch (error) {
     console.error("Login error:", error)

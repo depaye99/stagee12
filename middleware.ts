@@ -97,24 +97,39 @@ export async function middleware(request: NextRequest) {
       // Vérifier s'il y a un paramètre redirectTo
       const redirectTo = request.nextUrl.searchParams.get('redirectTo')
       
-      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register') {
+      if (redirectTo && redirectTo !== '/auth/login' && redirectTo !== '/auth/register' && redirectTo !== '/') {
         console.log("User already logged in, redirecting to requested page:", redirectTo)
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Sinon, redirection basée sur le rôle
+      // Récupérer le rôle depuis la base de données (plus fiable)
       let userRole = "stagiaire"
       try {
-        const { data: userData } = await supabase.from("users").select("role").eq("id", user.id).single()
-        userRole = userData?.role || user.user_metadata?.role || "stagiaire"
+        const { data: userData, error: roleError } = await supabase
+          .from("users")
+          .select("role")
+          .eq("id", user.id)
+          .single()
+        
+        if (roleError) {
+          console.warn("Could not fetch user role from database:", roleError)
+          // Utiliser le rôle des métadonnées en fallback
+          userRole = user.user_metadata?.role || "stagiaire"
+        } else {
+          userRole = userData?.role || "stagiaire"
+        }
       } catch (error) {
-        console.warn("Could not fetch user role from database:", error)
+        console.warn("Database query failed:", error)
         userRole = user.user_metadata?.role || "stagiaire"
       }
 
-      console.log("User already logged in, redirecting to dashboard:", userRole)
+      console.log("User already logged in with role:", userRole, "redirecting to dashboard")
       const dashboardRoute =
-        userRole === "admin" ? "/admin" : userRole === "rh" ? "/rh" : userRole === "tuteur" ? "/tuteur" : "/stagiaire"
+        userRole === "admin" ? "/admin" : 
+        userRole === "rh" ? "/rh" : 
+        userRole === "tuteur" ? "/tuteur" : 
+        "/stagiaire"
+      
       return NextResponse.redirect(new URL(dashboardRoute, request.url))
     }
 

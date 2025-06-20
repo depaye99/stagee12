@@ -140,6 +140,12 @@ class AuthService {
 
   private async createUserProfileSafe(authUser: any, userData?: any): Promise<AuthUser> {
     try {
+      // Vérifier d'abord si le profil existe déjà
+      const existingProfile = await this.getUserProfile(authUser.id)
+      if (existingProfile) {
+        return existingProfile
+      }
+
       // Start with basic required fields only
       const basicProfile = {
         id: authUser.id,
@@ -232,7 +238,16 @@ class AuthService {
 
       if (!user) return null
 
-      return await this.getUserProfile(user.id)
+      // Toujours récupérer le profil depuis la base de données pour avoir le rôle correct
+      const profile = await this.getUserProfile(user.id)
+      
+      // Si le profil n'existe pas, le créer
+      if (!profile) {
+        console.log("Profile not found for authenticated user, creating...")
+        return await this.createUserProfileSafe(user)
+      }
+
+      return profile
     } catch (error) {
       console.error("Get current user error:", error)
       return null

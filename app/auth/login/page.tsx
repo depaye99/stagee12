@@ -39,7 +39,7 @@ function LoginForm() {
     if (typeof window !== 'undefined') {
       const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
       const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      
+
       if (!supabaseUrl || !supabaseKey) {
         setError("Configuration Supabase manquante. Vérifiez vos variables d'environnement.")
         setIsLoading(false)
@@ -74,7 +74,7 @@ function LoginForm() {
       } else {
         const userRole = data.user?.role || "stagiaire"
         console.log("User role for redirection:", userRole)
-        
+
         let targetPath = "/stagiaire"
         switch (userRole) {
           case "admin":
@@ -87,7 +87,7 @@ function LoginForm() {
             targetPath = "/tuteur"
             break
         }
-        
+
         console.log("Redirecting to:", targetPath)
         window.location.href = targetPath
       }
