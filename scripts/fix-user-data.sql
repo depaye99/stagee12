@@ -1,4 +1,3 @@
-
 -- Script de réparation pour corriger les problèmes de données utilisateur
 
 -- 1. Corriger les utilisateurs avec des rôles manquants

@@ -1,4 +1,3 @@
-
 -- Vérifier les utilisateurs de test
 SELECT 
   id,

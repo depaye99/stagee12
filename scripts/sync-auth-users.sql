@@ -1,4 +1,3 @@
-
 -- Script pour synchroniser les utilisateurs de auth.users vers la table users
 -- Utiliser uniquement si nécessaire pour réparer les données
 
