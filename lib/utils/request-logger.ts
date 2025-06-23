@@ -1,4 +1,3 @@
-
 import { type NextRequest } from "next/server"
 import { LoggingService } from "@/lib/services/logging-service"
 
