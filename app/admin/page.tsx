@@ -81,67 +81,67 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-50">
       <Header user={user} />
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Tableau de bord Administrateur</h1>
-          <p className="text-gray-600">Bienvenue, {user?.name}</p>
+      <main className="container-responsive py-responsive">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-responsive-lg font-bold text-gray-900">Tableau de bord - Administration</h1>
+          <p className="text-responsive-sm text-gray-600 mt-1">Vue d'ensemble de la plateforme Bridge Technologies</p>
         </div>
 
         {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+          <Card className="card-responsive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
+              <CardTitle className="text-sm font-medium">Utilisateurs totaux</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.users_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Total des utilisateurs</p>
+            <CardContent className="p-0 pt-2">
+              <div className="text-xl sm:text-2xl font-bold">{stats?.users_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Tous les utilisateurs actifs</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Stagiaires</CardTitle>
               <UserPlus className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.stagiaires_total || 0}</div>
+            <CardContent className="p-0 pt-2">
+              <div className="text-xl sm:text-2xl font-bold">{stats?.stagiaires_total || 0}</div>
               <p className="text-xs text-muted-foreground">Stagiaires actifs</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Demandes</CardTitle>
+              <CardTitle className="text-sm font-medium">Demandes en attente</CardTitle>
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.demandes_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Total des demandes</p>
+            <CardContent className="p-0 pt-2">
+              <div className="text-xl sm:text-2xl font-bold">{stats?.demandes_en_attente || 0}</div>
+              <p className="text-xs text-muted-foreground">À traiter</p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En attente</CardTitle>
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Logs d'activité</CardTitle>
+              <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats?.demandes_en_attente || 0}</div>
-              <p className="text-xs text-muted-foreground">Demandes en attente</p>
+            <CardContent className="p-0 pt-2">
+              <div className="text-xl sm:text-2xl font-bold">{0}</div>
+              <p className="text-xs text-muted-foreground">Actions enregistrées</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Actions rapides */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+          <Card className="card-responsive">
             <CardHeader>
-              <CardTitle>Gestion des utilisateurs</CardTitle>
-              <CardDescription>Gérer les comptes utilisateurs et leurs rôles</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Gestion des utilisateurs</CardTitle>
+              <CardDescription className="text-sm">Créer et gérer les comptes utilisateurs</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0 pt-4">
               <Button className="w-full" onClick={() => router.push("/admin/users")}>
                 <Users className="mr-2 h-4 w-4" />
                 Gérer les utilisateurs
@@ -149,25 +149,12 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader>
-              <CardTitle>Gestion des stagiaires</CardTitle>
-              <CardDescription>Superviser tous les stagiaires et leurs stages</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Demandes</CardTitle>
+              <CardDescription className="text-sm">Superviser toutes les demandes</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/stagiaires")}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Gérer les stagiaires
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Demandes</CardTitle>
-              <CardDescription>Traiter les demandes en attente</CardDescription>
-            </CardHeader>
-            <CardContent>
+            <CardContent className="p-0 pt-4">
               <Button className="w-full" onClick={() => router.push("/admin/demandes")}>
                 <FileText className="mr-2 h-4 w-4" />
                 Voir les demandes
@@ -175,28 +162,54 @@ export default function AdminDashboard() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader>
-              <CardTitle>Rapports</CardTitle>
-              <CardDescription>Générer des rapports et statistiques</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Logs système</CardTitle>
+              <CardDescription className="text-sm">Consulter l'activité du système</CardDescription>
             </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/reports")}>
-                <TrendingUp className="mr-2 h-4 w-4" />
-                Voir les rapports
+            <CardContent className="p-0 pt-4">
+              <Button className="w-full" onClick={() => router.push("/admin/logs")}>
+                <Activity className="mr-2 h-4 w-4" />
+                Voir les logs
               </Button>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="card-responsive">
             <CardHeader>
-              <CardTitle>Paramètres</CardTitle>
-              <CardDescription>Configuration du système</CardDescription>
+              <CardTitle className="text-base sm:text-lg">Rapports</CardTitle>
+              <CardDescription className="text-sm">Générer des rapports d'activité</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-0 pt-4">
+              <Button className="w-full" onClick={() => router.push("/admin/reports")}>
+                <TrendingUp className="mr-2 h-4 w-4" />
+                Générer un rapport
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="card-responsive">
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg">Stagiaires</CardTitle>
+              <CardDescription className="text-sm">Gérer les stagiaires</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 pt-4">
+              <Button className="w-full" onClick={() => router.push("/admin/stagiaires")}>
+                <UserPlus className="mr-2 h-4 w-4" />
+                Gérer les stagiaires
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="card-responsive">
+            <CardHeader>
+              <CardTitle className="text-base sm:text-lg">Paramètres</CardTitle>
+              <CardDescription className="text-sm">Configuration du système</CardDescription>
+            </CardHeader>
+            <CardContent className="p-0 pt-4">
               <Button className="w-full" onClick={() => router.push("/admin/settings")}>
                 <Settings className="mr-2 h-4 w-4" />
-                Paramètres
+                Paramètres système
               </Button>
             </CardContent>
           </Card>

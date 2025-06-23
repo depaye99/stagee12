@@ -85,97 +85,82 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">
-            Connexion
-          </CardTitle>
-          <CardDescription className="text-center">
-            Connectez-vous à votre compte de gestion des stagiaires
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {(localError || error) && (
-              <Alert variant="destructive">
-                <AlertDescription>
-                  {localError || error}
-                </AlertDescription>
-              </Alert>
-            )}
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-8 sm:py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-6 sm:space-y-8">
+        <div className="text-center">
+          <div className="mx-auto mb-4 sm:mb-6 w-16 h-16 sm:w-20 sm:h-20 bg-blue-600 rounded-full flex items-center justify-center">
+            <span className="text-white font-bold text-xl sm:text-2xl">BT</span>
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-gray-900">
+            Connexion à votre compte
+          </h2>
+          <p className="mt-2 text-sm sm:text-base text-gray-600">
+            Bridge Technologies - Système de gestion des stagiaires
+          </p>
+        </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
-              <Input
+        <form className="mt-6 sm:mt-8 space-y-4 sm:space-y-6" onSubmit={handleSubmit}>
+          <div className="space-y-4">
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                Adresse email
+              </label>
+              <input
                 id="email"
+                name="email"
                 type="email"
-                placeholder="votre.email@exemple.com"
+                autoComplete="email"
+                required
+                className="appearance-none relative block w-full px-3 py-2 sm:py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 text-sm sm:text-base"
+                placeholder="votre@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isSubmitting}
-                required
               />
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password">Mot de passe</Label>
-              <div className="relative">
-                <Input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Votre mot de passe"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  disabled={isSubmitting}
-                  required
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                  onClick={() => setShowPassword(!showPassword)}
-                  disabled={isSubmitting}
-                >
-                  {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
-                </Button>
-              </div>
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+                Mot de passe
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none relative block w-full px-3 py-2 sm:py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 text-sm sm:text-base"
+                placeholder="Votre mot de passe"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
             </div>
-
-            <Button 
-              type="submit" 
-              className="w-full" 
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Connexion...
-                </>
-              ) : (
-                'Se connecter'
-              )}
-            </Button>
-          </form>
-
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Pas encore de compte ?{' '}
-              <Link 
-                href="/auth/register" 
-                className="font-medium text-blue-600 hover:text-blue-500"
-              >
-                S'inscrire
-              </Link>
-            </p>
           </div>
-        </CardContent>
-      </Card>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 sm:p-4">
+              <div className="text-red-600 text-sm text-center">{error}</div>
+            </div>
+          )}
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 sm:py-3 px-4 border border-transparent text-sm sm:text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {loading ? 'Connexion...' : 'Se connecter'}
+            </button>
+          </div>
+
+          <div className="text-center">
+            <Link 
+              href="/auth/register" 
+              className="text-blue-600 hover:text-blue-500 text-sm sm:text-base transition-colors"
+            >
+              Pas encore de compte ? S'inscrire
+            </Link>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
