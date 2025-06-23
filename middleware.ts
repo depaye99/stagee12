@@ -8,13 +8,11 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Vérifier que les variables d'environnement existent
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-  // Si les variables ne sont pas configurées, laisser passer sans authentification
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.warn("⚠️ Supabase environment variables not configured, skipping auth middleware")
+    console.warn("⚠️ Variables d'environnement Supabase non configurées")
     return response
   }
 
@@ -25,15 +23,15 @@ export async function middleware(request: NextRequest) {
           return request.cookies.get(name)?.value
         },
         set(name: string, value: string, options: CookieOptions) {
-          // S'assurer que les cookies de session sont correctement configurés
           const cookieOptions = {
             ...options,
-            httpOnly: false, // Permettre l'accès côté client pour l'auth
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax' as const,
-            path: '/',
+            httpOnly: false,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax" as const,
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7, // 7 jours
           }
-          
+
           request.cookies.set({
             name,
             value,
@@ -53,9 +51,10 @@ export async function middleware(request: NextRequest) {
         remove(name: string, options: CookieOptions) {
           const cookieOptions = {
             ...options,
-            path: '/',
+            path: "/",
+            maxAge: 0,
           }
-          
+
           request.cookies.set({
             name,
             value: "",
@@ -75,83 +74,63 @@ export async function middleware(request: NextRequest) {
       },
     })
 
-    // Routes publiques qui ne nécessitent pas d'authentification
-    const publicRoutes = ["/auth/login", "/auth/register", "/api/auth", "/", "/api"]
+    // Routes publiques
+    const publicRoutes = ["/auth/login", "/auth/register", "/api/auth", "/"]
     const isPublicRoute = publicRoutes.some(
       (route) => request.nextUrl.pathname === route || request.nextUrl.pathname.startsWith(route + "/"),
     )
 
-    // Pour les routes API, on laisse passer
+    // Laisser passer les routes API
     if (request.nextUrl.pathname.startsWith("/api/")) {
       return response
     }
 
-    // Rafraîchir la session si nécessaire
+    // Vérifier la session utilisateur
     const {
       data: { user },
       error: userError,
     } = await supabase.auth.getUser()
 
-    if (userError) {
-      console.warn("Middleware user error:", userError)
-      // Si erreur de session sur route protégée, rediriger vers login
-      if (!isPublicRoute) {
-        const loginUrl = new URL("/auth/login", request.url)
-        return NextResponse.redirect(loginUrl)
-      }
-    }
-
     // Si pas d'utilisateur et route privée, rediriger vers login
     if (!user && !isPublicRoute) {
-      console.log("No user found, redirecting to login from:", request.nextUrl.pathname)
+      console.log("Aucun utilisateur trouvé, redirection vers login depuis:", request.nextUrl.pathname)
       const loginUrl = new URL("/auth/login", request.url)
-      // Inclure les paramètres de requête existants
       const fullPath = request.nextUrl.pathname + request.nextUrl.search
       loginUrl.searchParams.set("redirectTo", fullPath)
       return NextResponse.redirect(loginUrl)
     }
 
-    // Si utilisateur connecté et sur page de login, rediriger vers dashboard
+    // Si utilisateur connecté et sur page de login/register
     if (user && (request.nextUrl.pathname === "/auth/login" || request.nextUrl.pathname === "/auth/register")) {
-      // Vérifier s'il y a un paramètre redirectTo valide
-      const redirectTo = request.nextUrl.searchParams.get('redirectTo')
-      
-      if (redirectTo && 
-          redirectTo !== '/auth/login' && 
-          redirectTo !== '/auth/register' && 
-          redirectTo !== '/' &&
-          !redirectTo.includes('/auth/') &&
-          redirectTo.startsWith('/')) {
-        console.log("User already logged in, redirecting to requested page:", redirectTo)
+      const redirectTo = request.nextUrl.searchParams.get("redirectTo")
+
+      if (
+        redirectTo &&
+        redirectTo !== "/auth/login" &&
+        redirectTo !== "/auth/register" &&
+        redirectTo !== "/" &&
+        !redirectTo.includes("/auth/") &&
+        redirectTo.startsWith("/")
+      ) {
         return NextResponse.redirect(new URL(redirectTo, request.url))
       }
 
-      // Récupérer le rôle utilisateur
+      // Déterminer le rôle et rediriger vers le bon dashboard
       let userRole = "stagiaire"
       try {
-        // Essayer d'abord les métadonnées
         if (user.user_metadata?.role) {
           userRole = user.user_metadata.role
         } else {
-          // Requête DB avec timeout court
-          const { data: userData, error: roleError } = await supabase
-            .from("users")
-            .select("role")
-            .eq("id", user.id)
-            .single()
-          
-          if (!roleError && userData?.role) {
+          const { data: userData } = await supabase.from("users").select("role").eq("id", user.id).single()
+
+          if (userData?.role) {
             userRole = userData.role
           }
         }
       } catch (error) {
-        console.warn("Database query failed, using fallback role:", error)
-        userRole = "stagiaire"
+        console.warn("Impossible de récupérer le rôle, utilisation du fallback:", error)
       }
 
-      console.log("User already logged in with role:", userRole, "redirecting to dashboard")
-      
-      // Déterminer la route de redirection basée sur le rôle
       let dashboardRoute = "/stagiaire"
       switch (userRole) {
         case "admin":
@@ -166,13 +145,13 @@ export async function middleware(request: NextRequest) {
         default:
           dashboardRoute = "/stagiaire"
       }
-      
+
       return NextResponse.redirect(new URL(dashboardRoute, request.url))
     }
 
     return response
   } catch (error) {
-    console.error("Middleware error:", error)
+    console.error("Erreur middleware:", error)
     return response
   }
 }

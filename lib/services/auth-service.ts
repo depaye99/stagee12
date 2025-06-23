@@ -26,7 +26,10 @@ class AuthService {
     error: Error | null
   }> {
     try {
-      // First, try to sign in with Supabase Auth
+      // Clear any existing session first
+      await this.supabase.auth.signOut()
+
+      // Sign in with fresh credentials
       const { data: authData, error: authError } = await this.supabase.auth.signInWithPassword({
         email,
         password,
@@ -35,51 +38,42 @@ class AuthService {
       if (authError) {
         console.error("Supabase auth error:", authError)
 
-        // Provide helpful error messages
         if (authError.message.includes("Invalid login credentials")) {
-          throw new Error(
-            `Identifiants invalides pour ${email}. ` +
-              `Vérifiez votre email et mot de passe. ` +
-              `Si vous venez de créer votre compte, assurez-vous que votre email est confirmé.`,
-          )
+          throw new Error("Identifiants invalides. Vérifiez votre email et mot de passe.")
         }
 
         if (authError.message.includes("Email not confirmed")) {
-          throw new Error(
-            `Email non confirmé pour ${email}. ` +
-              `Vérifiez votre boîte mail ou utilisez l'outil de confirmation manuelle en mode développement.`,
-          )
+          throw new Error("Email non confirmé. Vérifiez votre boîte mail.")
         }
 
         throw new Error(authError.message)
       }
 
       if (!authData.user) {
-        throw new Error("No user returned from authentication")
+        throw new Error("Aucun utilisateur retourné")
       }
 
-      // Try to get user profile from our users table
-      let profile = await this.getUserProfile(authData.user.id)
+      // Get user profile with retry mechanism
+      let profile = await this.getUserProfileWithRetry(authData.user.id)
 
-      // If profile doesn't exist, create it from auth user data
       if (!profile) {
-        console.log("User profile not found, creating from auth data...")
+        console.log("Profil utilisateur non trouvé, création...")
         profile = await this.createUserProfileSafe(authData.user)
       }
 
-      // Update last login (don't throw if this fails)
+      // Update last login
       try {
         await this.updateLastLogin(authData.user.id)
       } catch (error) {
-        console.warn("Failed to update last login:", error)
+        console.warn("Échec mise à jour dernière connexion:", error)
       }
 
       return { user: profile, error: null }
     } catch (error) {
-      console.error("Sign in error:", error)
+      console.error("Erreur de connexion:", error)
       return {
         user: null,
-        error: error instanceof Error ? error : new Error("Unknown authentication error"),
+        error: error instanceof Error ? error : new Error("Erreur d'authentification inconnue"),
       }
     }
   }
@@ -100,7 +94,6 @@ class AuthService {
     error: Error | null
   }> {
     try {
-      // Try to sign up with Supabase
       const { data, error } = await this.supabase.auth.signUp({
         email,
         password,
@@ -117,53 +110,48 @@ class AuthService {
       })
 
       if (error) {
-        console.error("Supabase signup error:", error)
+        console.error("Erreur inscription Supabase:", error)
         throw error
       }
 
       if (!data.user) {
-        throw new Error("No user returned from registration")
+        throw new Error("Aucun utilisateur retourné lors de l'inscription")
       }
 
-      // Create user profile in our users table safely
       const profile = await this.createUserProfileSafe(data.user, userData)
 
       return { user: profile, error: null }
     } catch (error) {
-      console.error("Sign up error:", error)
+      console.error("Erreur d'inscription:", error)
       return {
         user: null,
-        error: error instanceof Error ? error : new Error("Unknown registration error"),
+        error: error instanceof Error ? error : new Error("Erreur d'inscription inconnue"),
       }
     }
   }
 
   private async createUserProfileSafe(authUser: any, userData?: any): Promise<AuthUser> {
     try {
-      console.log("createUserProfileSafe called for:", authUser.email)
-      console.log("Auth user metadata:", authUser.user_metadata)
-      console.log("Provided userData:", userData)
-      
-      // Vérifier d'abord si le profil existe déjà
+      console.log("Création profil sécurisée pour:", authUser.email)
+
       const existingProfile = await this.getUserProfile(authUser.id)
       if (existingProfile) {
-        console.log("Found existing profile:", existingProfile)
+        console.log("Profil existant trouvé:", existingProfile)
         return existingProfile
       }
 
-      // Start with basic required fields only
-      const userRole = (userData?.role || authUser.user_metadata?.role) as UserRole || "stagiaire"
-      console.log("Determined user role:", userRole)
-      
+      const userRole = ((userData?.role || authUser.user_metadata?.role) as UserRole) || "stagiaire"
+
       const basicProfile = {
         id: authUser.id,
         email: authUser.email!,
         name: userData?.name || authUser.user_metadata?.name || authUser.email!.split("@")[0],
         role: userRole,
         is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }
 
-      // Try to insert with basic fields first
       const { data: createdProfile, error: insertError } = await this.supabase
         .from("users")
         .insert([basicProfile])
@@ -171,8 +159,7 @@ class AuthService {
         .single()
 
       if (insertError) {
-        console.error("Basic profile creation failed:", insertError)
-        // Return a basic profile even if database insert fails
+        console.error("Échec création profil de base:", insertError)
         return {
           id: authUser.id,
           email: authUser.email!,
@@ -182,7 +169,16 @@ class AuthService {
         }
       }
 
-      // Try to update with additional fields if they exist
+      // Si c'est un stagiaire, créer l'entrée dans la table stagiaires
+      if (userRole === "stagiaire") {
+        try {
+          await this.createStagiaireEntry(authUser.id)
+        } catch (error) {
+          console.warn("Échec création entrée stagiaire:", error)
+        }
+      }
+
+      // Mettre à jour avec les champs additionnels
       if (userData?.phone || userData?.address || userData?.department || userData?.position) {
         try {
           const updateData: any = {}
@@ -193,7 +189,7 @@ class AuthService {
 
           await this.supabase.from("users").update(updateData).eq("id", authUser.id)
         } catch (updateError) {
-          console.warn("Failed to update additional profile fields:", updateError)
+          console.warn("Échec mise à jour champs additionnels:", updateError)
         }
       }
 
@@ -211,8 +207,7 @@ class AuthService {
         email_confirmed: !!authUser.email_confirmed_at,
       }
     } catch (error) {
-      console.error("Profile creation exception:", error)
-      // Return a basic profile from auth data
+      console.error("Exception création profil:", error)
       return {
         id: authUser.id,
         email: authUser.email!,
@@ -224,29 +219,73 @@ class AuthService {
     }
   }
 
+  private async createStagiaireEntry(userId: string): Promise<void> {
+    try {
+      // Assigner automatiquement un tuteur
+      const { data: tuteurs } = await this.supabase
+        .from("users")
+        .select(`
+          id, name,
+          stagiaires_count:stagiaires(count)
+        `)
+        .eq("role", "tuteur")
+        .eq("is_active", true)
+
+      let tuteurId = null
+      if (tuteurs && tuteurs.length > 0) {
+        const tuteurAvecMoinsDeStages = tuteurs.reduce((prev, current) => {
+          const prevCount = prev.stagiaires_count?.[0]?.count || 0
+          const currentCount = current.stagiaires_count?.[0]?.count || 0
+          return currentCount < prevCount ? current : prev
+        })
+        tuteurId = tuteurAvecMoinsDeStages.id
+      }
+
+      await this.supabase.from("stagiaires").insert([
+        {
+          user_id: userId,
+          entreprise: "Bridge Technologies Solutions",
+          poste: "Stagiaire",
+          tuteur_id: tuteurId,
+          statut: "actif",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+      ])
+    } catch (error) {
+      console.error("Erreur création entrée stagiaire:", error)
+      throw error
+    }
+  }
+
   async signOut(): Promise<{ error: Error | null }> {
     try {
       const { error } = await this.supabase.auth.signOut()
       if (error) throw error
+
+      // Clear local storage and session storage
+      if (typeof window !== "undefined") {
+        localStorage.clear()
+        sessionStorage.clear()
+      }
+
       return { error: null }
     } catch (error) {
-      console.error("Sign out error:", error)
+      console.error("Erreur de déconnexion:", error)
       return {
-        error: error instanceof Error ? error : new Error("Unknown error"),
+        error: error instanceof Error ? error : new Error("Erreur inconnue"),
       }
     }
   }
 
   async getCurrentUser(): Promise<AuthUser | null> {
     try {
-      // Vérifier d'abord la session locale
       const {
         data: { session },
         error: sessionError,
       } = await this.supabase.auth.getSession()
-      
+
       if (sessionError || !session) {
-        console.log("No valid session found")
         return null
       }
 
@@ -254,16 +293,12 @@ class AuthService {
         data: { user },
         error,
       } = await this.supabase.auth.getUser()
-      if (error) throw error
 
-      if (!user) return null
+      if (error || !user) return null
 
-      // Essayer de récupérer le profil, mais ne pas le créer automatiquement
-      // pour éviter les boucles infinies
       const profile = await this.getUserProfile(user.id)
-      
+
       if (!profile) {
-        // Retourner un profil basique basé sur les métadonnées auth
         return {
           id: user.id,
           email: user.email!,
@@ -276,9 +311,27 @@ class AuthService {
 
       return profile
     } catch (error) {
-      console.error("Get current user error:", error)
+      console.error("Erreur récupération utilisateur actuel:", error)
       return null
     }
+  }
+
+  private async getUserProfileWithRetry(userId: string, maxRetries = 3): Promise<AuthUser | null> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const profile = await this.getUserProfile(userId)
+        if (profile) return profile
+
+        // Wait before retry
+        if (i < maxRetries - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (i + 1)))
+        }
+      } catch (error) {
+        console.warn(`Tentative ${i + 1} échouée:`, error)
+        if (i === maxRetries - 1) throw error
+      }
+    }
+    return null
   }
 
   async getUserProfile(userId: string): Promise<AuthUser | null> {
@@ -287,12 +340,10 @@ class AuthService {
 
       if (error) {
         if (error.code === "PGRST116") {
-          // No rows returned
           return null
         }
         if (error.code === "42P01") {
-          // Table doesn't exist
-          console.warn("Users table doesn't exist yet")
+          console.warn("Table users n'existe pas encore")
           return null
         }
         throw error
@@ -309,17 +360,16 @@ class AuthService {
         position: profile.position,
         avatar_url: profile.avatar_url,
         is_active: profile.is_active,
-        email_confirmed: true, // If they can login, email is confirmed
+        email_confirmed: true,
       }
     } catch (error) {
-      console.error("Get user profile error:", error)
+      console.error("Erreur récupération profil utilisateur:", error)
       return null
     }
   }
 
   async updateLastLogin(userId: string): Promise<void> {
     try {
-      // Try to update, but don't fail if columns don't exist
       await this.supabase
         .from("users")
         .update({
@@ -328,10 +378,9 @@ class AuthService {
         })
         .eq("id", userId)
     } catch (error) {
-      console.warn("Update last login failed (this is OK if columns don't exist):", error)
+      console.warn("Échec mise à jour dernière connexion:", error)
     }
   }
 }
 
-// Export de l'instance du service
 export const authService = new AuthService()
