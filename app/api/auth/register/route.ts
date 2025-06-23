@@ -47,58 +47,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Créer le profil utilisateur dans notre table users
-    // Utiliser un trigger dans la base de données ou attendre la confirmation
-    if (authData.user.email_confirmed_at) {
-      const { error: profileError } = await supabase.from("users").insert([
-        {
-          id: authData.user.id,
-          email: authData.user.email!,
-          name: `${prenom} ${nom}`,
-          first_name: prenom,
-          last_name: nom,
-          role: (role as UserRole) || "stagiaire",
-          phone: telephone || null,
-          company: "Bridge Technologies",
-          is_active: true,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-      ])
+    const { error: profileError } = await supabase.from("users").insert([
+      {
+        id: authData.user.id,
+        email: authData.user.email!,
+        name: `${prenom} ${nom}`,
+        role: (role as UserRole) || "stagiaire",
+        phone: telephone || null,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      },
+    ])
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
-        // Continuer même si le profil n'est pas créé immédiatement
-      }
-
-      // Si c'est un tuteur, créer l'entrée dans la table tuteurs
-      if (role === "tuteur") {
-        const { error: tuteurError } = await supabase.from("tuteurs").insert([
-          {
-            user_id: authData.user.id,
-            specialite: "Non définie",
-            max_stagiaires: 5,
-          },
-        ])
-
-        if (tuteurError) {
-          console.error("Tuteur creation error:", tuteurError)
-        }
-      }
-
-      // Si c'est un stagiaire, créer l'entrée dans la table stagiaires
-      if (role === "stagiaire") {
-        const { error: stagiaireError } = await supabase.from("stagiaires").insert([
-          {
-            user_id: authData.user.id,
-            entreprise: "Bridge Technologies",
-            statut: "actif",
-          },
-        ])
-
-        if (stagiaireError) {
-          console.error("Stagiaire creation error:", stagiaireError)
-        }
-      }
+    if (profileError) {
+      console.error("Profile creation error:", profileError)
+      // Ne pas échouer si le profil n'est pas créé
     }
 
     return NextResponse.json({
