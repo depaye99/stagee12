@@ -4,22 +4,75 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Header } from "@/components/layout/header"
-import { Bell, Shield, Palette } from "lucide-react"
+import { User, Bell, Shield, Palette, Globe, Save, RefreshCw, Camera } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Separator } from "@/components/ui/separator"
+
+interface UserSettings {
+  notifications: {
+    email: boolean
+    push: boolean
+    demandes: boolean
+    evaluations: boolean
+    documents: boolean
+  }
+  display: {
+    theme: string
+    language: string
+    timezone: string
+    dateFormat: string
+  }
+  privacy: {
+    profileVisible: boolean
+    emailVisible: boolean
+    phoneVisible: boolean
+  }
+}
 
 export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [settings, setSettings] = useState({
-    emailNotifications: true,
-    pushNotifications: false,
-    darkMode: false,
-    twoFactorAuth: false,
+  const [profile, setProfile] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    department: "",
+    position: "",
   })
+  const [settings, setSettings] = useState<UserSettings>({
+    notifications: {
+      email: true,
+      push: true,
+      demandes: true,
+      evaluations: true,
+      documents: true,
+    },
+    display: {
+      theme: "light",
+      language: "fr",
+      timezone: "Africa/Douala",
+      dateFormat: "DD/MM/YYYY",
+    },
+    privacy: {
+      profileVisible: true,
+      emailVisible: false,
+      phoneVisible: false,
+    },
+  })
+  const [passwords, setPasswords] = useState({
+    current: "",
+    new: "",
+    confirm: "",
+  })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
@@ -34,25 +87,127 @@ export default function SettingsPage() {
         return
       }
 
-      const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-      if (!profile) {
+      const { data: userProfile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+      if (!userProfile) {
         router.push("/auth/login")
         return
       }
 
-      setUser(profile)
+      setUser(userProfile)
+      setProfile({
+        name: userProfile.name || "",
+        email: userProfile.email || "",
+        phone: userProfile.phone || "",
+        department: userProfile.department || "",
+        position: userProfile.position || "",
+      })
+
+      await loadUserSettings()
       setLoading(false)
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const handleSettingChange = (key: string, value: boolean) => {
-    setSettings((prev) => ({ ...prev, [key]: value }))
-    toast({
-      title: "Paramètre mis à jour",
-      description: "Vos préférences ont été sauvegardées",
-    })
+  const loadUserSettings = async () => {
+    try {
+      const response = await fetch("/api/user/settings")
+      const data = await response.json()
+
+      if (data.success && data.data) {
+        setSettings({ ...settings, ...data.data })
+      }
+    } catch (error) {
+      console.error("Erreur lors du chargement des paramètres:", error)
+    }
+  }
+
+  const saveProfile = async () => {
+    setSaving(true)
+    try {
+      const { error } = await supabase.from("users").update(profile).eq("id", user.id)
+
+      if (error) throw error
+
+      toast({
+        title: "Succès",
+        description: "Profil mis à jour avec succès",
+      })
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de mettre à jour le profil",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const saveSettings = async () => {
+    setSaving(true)
+    try {
+      const response = await fetch("/api/user/settings", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(settings),
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Succès",
+          description: "Paramètres sauvegardés avec succès",
+        })
+      } else {
+        throw new Error(data.error)
+      }
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de sauvegarder les paramètres",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const changePassword = async () => {
+    if (passwords.new !== passwords.confirm) {
+      toast({
+        title: "Erreur",
+        description: "Les mots de passe ne correspondent pas",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwords.new,
+      })
+
+      if (error) throw error
+
+      toast({
+        title: "Succès",
+        description: "Mot de passe modifié avec succès",
+      })
+      setPasswords({ current: "", new: "", confirm: "" })
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Impossible de modifier le mot de passe",
+        variant: "destructive",
+      })
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -70,93 +225,368 @@ export default function SettingsPage() {
       <main className="max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Paramètres</h1>
-          <p className="text-gray-600">Gérer vos préférences et paramètres de compte</p>
+          <p className="text-gray-600">Gérer votre profil et vos préférences</p>
         </div>
 
-        <div className="space-y-6">
-          {/* Notifications */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bell className="h-5 w-5" />
-                Notifications
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="email-notifications">Notifications par email</Label>
-                  <p className="text-sm text-gray-500">Recevoir des notifications par email</p>
-                </div>
-                <Switch
-                  id="email-notifications"
-                  checked={settings.emailNotifications}
-                  onCheckedChange={(checked) => handleSettingChange("emailNotifications", checked)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="push-notifications">Notifications push</Label>
-                  <p className="text-sm text-gray-500">Recevoir des notifications push dans le navigateur</p>
-                </div>
-                <Switch
-                  id="push-notifications"
-                  checked={settings.pushNotifications}
-                  onCheckedChange={(checked) => handleSettingChange("pushNotifications", checked)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+        <Tabs defaultValue="profile" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-5">
+            <TabsTrigger value="profile" className="flex items-center gap-2">
+              <User className="h-4 w-4" />
+              Profil
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center gap-2">
+              <Bell className="h-4 w-4" />
+              Notifications
+            </TabsTrigger>
+            <TabsTrigger value="security" className="flex items-center gap-2">
+              <Shield className="h-4 w-4" />
+              Sécurité
+            </TabsTrigger>
+            <TabsTrigger value="display" className="flex items-center gap-2">
+              <Palette className="h-4 w-4" />
+              Affichage
+            </TabsTrigger>
+            <TabsTrigger value="privacy" className="flex items-center gap-2">
+              <Globe className="h-4 w-4" />
+              Confidentialité
+            </TabsTrigger>
+          </TabsList>
 
-          {/* Apparence */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Palette className="h-5 w-5" />
-                Apparence
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="dark-mode">Mode sombre</Label>
-                  <p className="text-sm text-gray-500">Utiliser le thème sombre</p>
+          <TabsContent value="profile">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Informations personnelles
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center gap-6">
+                  <Avatar className="h-20 w-20">
+                    <AvatarImage src="/placeholder-user.jpg" />
+                    <AvatarFallback>{profile.name.charAt(0)}</AvatarFallback>
+                  </Avatar>
+                  <Button variant="outline">
+                    <Camera className="mr-2 h-4 w-4" />
+                    Changer la photo
+                  </Button>
                 </div>
-                <Switch
-                  id="dark-mode"
-                  checked={settings.darkMode}
-                  onCheckedChange={(checked) => handleSettingChange("darkMode", checked)}
-                />
-              </div>
-            </CardContent>
-          </Card>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nom complet</Label>
+                    <Input
+                      id="name"
+                      value={profile.name}
+                      onChange={(e) => setProfile({ ...profile, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input id="email" type="email" value={profile.email} disabled />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Téléphone</Label>
+                    <Input
+                      id="phone"
+                      value={profile.phone}
+                      onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="department">Département</Label>
+                    <Input
+                      id="department"
+                      value={profile.department}
+                      onChange={(e) => setProfile({ ...profile, department: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveProfile} disabled={saving}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Sauvegarder
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-          {/* Sécurité */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Sécurité
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="two-factor">Authentification à deux facteurs</Label>
-                  <p className="text-sm text-gray-500">Ajouter une couche de sécurité supplémentaire</p>
+          <TabsContent value="notifications">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bell className="h-5 w-5" />
+                  Préférences de notification
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Notifications par email</Label>
+                      <p className="text-sm text-gray-500">Recevoir des notifications par email</p>
+                    </div>
+                    <Switch
+                      checked={settings.notifications.email}
+                      onCheckedChange={(checked) =>
+                        setSettings({
+                          ...settings,
+                          notifications: { ...settings.notifications, email: checked },
+                        })
+                      }
+                    />
+                  </div>
+                  <Separator />
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium">Types de notifications :</h4>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Nouvelles demandes</span>
+                        <Switch
+                          checked={settings.notifications.demandes}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              notifications: { ...settings.notifications, demandes: checked },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Évaluations</span>
+                        <Switch
+                          checked={settings.notifications.evaluations}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              notifications: { ...settings.notifications, evaluations: checked },
+                            })
+                          }
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm">Documents</span>
+                        <Switch
+                          checked={settings.notifications.documents}
+                          onCheckedChange={(checked) =>
+                            setSettings({
+                              ...settings,
+                              notifications: { ...settings.notifications, documents: checked },
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <Switch
-                  id="two-factor"
-                  checked={settings.twoFactorAuth}
-                  onCheckedChange={(checked) => handleSettingChange("twoFactorAuth", checked)}
-                />
-              </div>
-              <div className="pt-4">
-                <Button variant="outline">Changer le mot de passe</Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveSettings} disabled={saving}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Sauvegarder
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="security">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Shield className="h-5 w-5" />
+                  Sécurité du compte
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium">Changer le mot de passe</h4>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="current_password">Mot de passe actuel</Label>
+                      <Input
+                        id="current_password"
+                        type="password"
+                        value={passwords.current}
+                        onChange={(e) => setPasswords({ ...passwords, current: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="new_password">Nouveau mot de passe</Label>
+                      <Input
+                        id="new_password"
+                        type="password"
+                        value={passwords.new}
+                        onChange={(e) => setPasswords({ ...passwords, new: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="confirm_password">Confirmer le nouveau mot de passe</Label>
+                      <Input
+                        id="confirm_password"
+                        type="password"
+                        value={passwords.confirm}
+                        onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })}
+                      />
+                    </div>
+                  </div>
+                  <Button onClick={changePassword} disabled={saving || !passwords.new || !passwords.confirm}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Shield className="mr-2 h-4 w-4" />}
+                    Changer le mot de passe
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="display">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Palette className="h-5 w-5" />
+                  Préférences d'affichage
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label>Thème</Label>
+                    <Select
+                      value={settings.display.theme}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, display: { ...settings.display, theme: value } })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="light">Clair</SelectItem>
+                        <SelectItem value="dark">Sombre</SelectItem>
+                        <SelectItem value="system">Système</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Langue</Label>
+                    <Select
+                      value={settings.display.language}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, display: { ...settings.display, language: value } })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="fr">Français</SelectItem>
+                        <SelectItem value="en">English</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Fuseau horaire</Label>
+                    <Select
+                      value={settings.display.timezone}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, display: { ...settings.display, timezone: value } })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Africa/Douala">Afrique/Douala</SelectItem>
+                        <SelectItem value="Europe/Paris">Europe/Paris</SelectItem>
+                        <SelectItem value="UTC">UTC</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Format de date</Label>
+                    <Select
+                      value={settings.display.dateFormat}
+                      onValueChange={(value) =>
+                        setSettings({ ...settings, display: { ...settings.display, dateFormat: value } })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                        <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                        <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveSettings} disabled={saving}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Sauvegarder
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="privacy">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  Paramètres de confidentialité
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Profil visible</Label>
+                      <p className="text-sm text-gray-500">Permettre aux autres utilisateurs de voir votre profil</p>
+                    </div>
+                    <Switch
+                      checked={settings.privacy.profileVisible}
+                      onCheckedChange={(checked) =>
+                        setSettings({ ...settings, privacy: { ...settings.privacy, profileVisible: checked } })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Email visible</Label>
+                      <p className="text-sm text-gray-500">Afficher votre email dans votre profil public</p>
+                    </div>
+                    <Switch
+                      checked={settings.privacy.emailVisible}
+                      onCheckedChange={(checked) =>
+                        setSettings({ ...settings, privacy: { ...settings.privacy, emailVisible: checked } })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Téléphone visible</Label>
+                      <p className="text-sm text-gray-500">Afficher votre téléphone dans votre profil public</p>
+                    </div>
+                    <Switch
+                      checked={settings.privacy.phoneVisible}
+                      onCheckedChange={(checked) =>
+                        setSettings({ ...settings, privacy: { ...settings.privacy, phoneVisible: checked } })
+                      }
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={saveSettings} disabled={saving}>
+                    {saving ? <RefreshCw className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Sauvegarder
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )

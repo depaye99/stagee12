@@ -4,22 +4,32 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Header } from "@/components/layout/header"
-import { Users, Search, Plus, Edit, Trash2, Filter, UserCheck, UserX } from "lucide-react"
+import { Users, Plus, Edit, Trash2, UserCheck, UserX, Search, Filter, MoreHorizontal, Eye } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface User {
   id: string
@@ -28,6 +38,7 @@ interface User {
   role: string
   phone?: string
   department?: string
+  position?: string
   is_active: boolean
   created_at: string
   last_login?: string
@@ -38,12 +49,11 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [filteredUsers, setFilteredUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
-  const [searchQuery, setSearchQuery] = useState("")
+  const [searchTerm, setSearchTerm] = useState("")
   const [roleFilter, setRoleFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [userToDelete, setUserToDelete] = useState<User | null>(null)
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
@@ -60,7 +70,7 @@ export default function AdminUsersPage() {
 
       const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
       if (!profile || profile.role !== "admin") {
-        router.push("/auth/login")
+        router.push("/")
         return
       }
 
@@ -74,11 +84,15 @@ export default function AdminUsersPage() {
 
   const loadUsers = async () => {
     try {
-      const { data, error } = await supabase.from("users").select("*").order("created_at", { ascending: false })
+      const response = await fetch("/api/admin/users")
+      const data = await response.json()
 
-      if (error) throw error
-      setUsers(data || [])
-      setFilteredUsers(data || [])
+      if (data.success) {
+        setUsers(data.data)
+        setFilteredUsers(data.data)
+      } else {
+        throw new Error(data.error)
+      }
     } catch (error) {
       console.error("Erreur lors du chargement des utilisateurs:", error)
       toast({
@@ -89,14 +103,15 @@ export default function AdminUsersPage() {
     }
   }
 
+  // Filtrage des utilisateurs
   useEffect(() => {
     let filtered = users
 
-    if (searchQuery) {
+    if (searchTerm) {
       filtered = filtered.filter(
         (user) =>
-          user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          user.email.toLowerCase().includes(searchQuery.toLowerCase()),
+          user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          user.email.toLowerCase().includes(searchTerm.toLowerCase()),
       )
     }
 
@@ -109,51 +124,64 @@ export default function AdminUsersPage() {
     }
 
     setFilteredUsers(filtered)
-  }, [users, searchQuery, roleFilter, statusFilter])
+  }, [users, searchTerm, roleFilter, statusFilter])
 
-  const handleToggleUserStatus = async (userId: string, currentStatus: boolean) => {
+  const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase.from("users").update({ is_active: !currentStatus }).eq("id", userId)
-
-      if (error) throw error
-
-      await loadUsers()
-      toast({
-        title: "Succès",
-        description: `Utilisateur ${!currentStatus ? "activé" : "désactivé"} avec succès`,
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          is_active: !currentStatus,
+        }),
       })
+
+      if (response.ok) {
+        toast({
+          title: "Succès",
+          description: `Utilisateur ${!currentStatus ? "activé" : "désactivé"} avec succès`,
+        })
+        await loadUsers()
+      } else {
+        throw new Error("Erreur lors de la mise à jour")
+      }
     } catch (error) {
-      console.error("Erreur lors de la mise à jour:", error)
       toast({
         title: "Erreur",
-        description: "Impossible de mettre à jour l'utilisateur",
+        description: "Impossible de modifier le statut",
         variant: "destructive",
       })
     }
   }
 
   const handleDeleteUser = async () => {
-    if (!selectedUser) return
+    if (!userToDelete) return
 
     try {
-      const { error } = await supabase.from("users").delete().eq("id", selectedUser.id)
-
-      if (error) throw error
-
-      await loadUsers()
-      setIsDeleteDialogOpen(false)
-      setSelectedUser(null)
-      toast({
-        title: "Succès",
-        description: "Utilisateur supprimé avec succès",
+      const response = await fetch(`/api/admin/users/${userToDelete.id}`, {
+        method: "DELETE",
       })
+
+      if (response.ok) {
+        toast({
+          title: "Succès",
+          description: "Utilisateur supprimé avec succès",
+        })
+        await loadUsers()
+      } else {
+        throw new Error("Erreur lors de la suppression")
+      }
     } catch (error) {
-      console.error("Erreur lors de la suppression:", error)
       toast({
         title: "Erreur",
         description: "Impossible de supprimer l'utilisateur",
         variant: "destructive",
       })
+    } finally {
+      setDeleteDialogOpen(false)
+      setUserToDelete(null)
     }
   }
 
@@ -166,10 +194,14 @@ export default function AdminUsersPage() {
       case "tuteur":
         return "bg-green-100 text-green-800"
       case "stagiaire":
-        return "bg-gray-100 text-gray-800"
+        return "bg-yellow-100 text-yellow-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("fr-FR")
   }
 
   if (loading) {
@@ -187,59 +219,102 @@ export default function AdminUsersPage() {
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-          <p className="text-gray-600">Gérer tous les utilisateurs de la plateforme</p>
+          <p className="text-gray-600">Gérer tous les comptes utilisateurs du système</p>
         </div>
 
-        {/* Filtres et recherche */}
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filtres et recherche
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="relative">
-                <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Rechercher par nom ou email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+        {/* Statistiques rapides */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Users className="h-8 w-8 text-blue-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Total</p>
+                  <p className="text-2xl font-bold text-gray-900">{users.length}</p>
+                </div>
               </div>
-              <Select value={roleFilter} onValueChange={setRoleFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrer par rôle" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les rôles</SelectItem>
-                  <SelectItem value="admin">Administrateur</SelectItem>
-                  <SelectItem value="rh">RH</SelectItem>
-                  <SelectItem value="tuteur">Tuteur</SelectItem>
-                  <SelectItem value="stagiaire">Stagiaire</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Filtrer par statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="active">Actifs</SelectItem>
-                  <SelectItem value="inactive">Inactifs</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button onClick={() => router.push("/admin/users/new")}>
-                <Plus className="mr-2 h-4 w-4" />
-                Nouvel utilisateur
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <UserCheck className="h-8 w-8 text-green-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Actifs</p>
+                  <p className="text-2xl font-bold text-gray-900">{users.filter((u) => u.is_active).length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <UserX className="h-8 w-8 text-red-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Inactifs</p>
+                  <p className="text-2xl font-bold text-gray-900">{users.filter((u) => !u.is_active).length}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center">
+                <Users className="h-8 w-8 text-yellow-600" />
+                <div className="ml-4">
+                  <p className="text-sm font-medium text-gray-600">Stagiaires</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    {users.filter((u) => u.role === "stagiaire").length}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
-        {/* Tableau des utilisateurs */}
+        {/* Filtres et actions */}
+        <div className="mb-6 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+              <Input
+                placeholder="Rechercher par nom ou email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10 w-full sm:w-80"
+              />
+            </div>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <Filter className="h-4 w-4 mr-2" />
+                <SelectValue placeholder="Rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous les rôles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="rh">RH</SelectItem>
+                <SelectItem value="tuteur">Tuteur</SelectItem>
+                <SelectItem value="stagiaire">Stagiaire</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-full sm:w-40">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="active">Actifs</SelectItem>
+                <SelectItem value="inactive">Inactifs</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button onClick={() => router.push("/admin/users/new")}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nouvel utilisateur
+          </Button>
+        </div>
+
+        {/* Liste des utilisateurs */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -248,86 +323,123 @@ export default function AdminUsersPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Nom</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Rôle</TableHead>
-                  <TableHead>Département</TableHead>
-                  <TableHead>Statut</TableHead>
-                  <TableHead>Dernière connexion</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredUsers.map((user) => (
-                  <TableRow key={user.id}>
-                    <TableCell className="font-medium">{user.name}</TableCell>
-                    <TableCell>{user.email}</TableCell>
-                    <TableCell>
-                      <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>{user.department || "-"}</TableCell>
-                    <TableCell>
-                      <Badge variant={user.is_active ? "default" : "secondary"}>
-                        {user.is_active ? "Actif" : "Inactif"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      {user.last_login ? new Date(user.last_login).toLocaleDateString("fr-FR") : "Jamais"}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleToggleUserStatus(user.id, user.is_active)}
-                        >
-                          {user.is_active ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />}
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => router.push(`/admin/users/${user.id}`)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedUser(user)
-                            setIsDeleteDialogOpen(true)
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
+            {filteredUsers.length === 0 ? (
+              <div className="text-center py-8">
+                <Users className="mx-auto h-12 w-12 text-gray-400" />
+                <h3 className="mt-2 text-sm font-medium text-gray-900">Aucun utilisateur</h3>
+                <p className="mt-1 text-sm text-gray-500">
+                  {searchTerm || roleFilter !== "all" || statusFilter !== "all"
+                    ? "Aucun utilisateur ne correspond aux critères de recherche."
+                    : "Commencez par créer votre premier utilisateur."}
+                </p>
+                {!searchTerm && roleFilter === "all" && statusFilter === "all" && (
+                  <div className="mt-6">
+                    <Button onClick={() => router.push("/admin/users/new")}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Nouvel utilisateur
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Nom</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Rôle</TableHead>
+                    <TableHead>Département</TableHead>
+                    <TableHead>Statut</TableHead>
+                    <TableHead>Créé le</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.map((user) => (
+                    <TableRow key={user.id}>
+                      <TableCell className="font-medium">{user.name}</TableCell>
+                      <TableCell>{user.email}</TableCell>
+                      <TableCell>
+                        <Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge>
+                      </TableCell>
+                      <TableCell>{user.department || "-"}</TableCell>
+                      <TableCell>
+                        <Badge variant={user.is_active ? "default" : "secondary"}>
+                          {user.is_active ? "Actif" : "Inactif"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>{formatDate(user.created_at)}</TableCell>
+                      <TableCell>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => router.push(`/admin/users/${user.id}`)}>
+                              <Eye className="mr-2 h-4 w-4" />
+                              Voir détails
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => router.push(`/admin/users/${user.id}/edit`)}>
+                              <Edit className="mr-2 h-4 w-4" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleToggleStatus(user.id, user.is_active)}>
+                              {user.is_active ? (
+                                <>
+                                  <UserX className="mr-2 h-4 w-4" />
+                                  Désactiver
+                                </>
+                              ) : (
+                                <>
+                                  <UserCheck className="mr-2 h-4 w-4" />
+                                  Activer
+                                </>
+                              )}
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-red-600"
+                              onClick={() => {
+                                setUserToDelete(user)
+                                setDeleteDialogOpen(true)
+                              }}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
-
-        {/* Dialog de suppression */}
-        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Confirmer la suppression</DialogTitle>
-              <DialogDescription>
-                Êtes-vous sûr de vouloir supprimer l'utilisateur "{selectedUser?.name}" ? Cette action est irréversible.
-              </DialogDescription>
-            </DialogHeader>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-                Annuler
-              </Button>
-              <Button variant="destructive" onClick={handleDeleteUser}>
-                Supprimer
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </main>
+
+      {/* Dialog de confirmation de suppression */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmer la suppression</AlertDialogTitle>
+            <AlertDialogDescription>
+              Êtes-vous sûr de vouloir supprimer l'utilisateur "{userToDelete?.name}" ? Cette action est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteUser} className="bg-red-600 hover:bg-red-700">
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
