@@ -100,19 +100,6 @@ export async function POST(request: NextRequest) {
         }
       }
     }
-    const userData =  {
-        id: authData.user.id,
-        email: authData.user.email,
-        name: `${prenom} ${nom}`,
-        role: role || "stagiaire",
-      }
-
-    // Logger l'inscription réussie
-    await logAuthAction(request, 'register', userData.id, {
-      user_name: userData.name,
-      user_role: userData.role,
-      user_email: userData.email
-    })
 
     return NextResponse.json({
       success: true,
@@ -130,31 +117,5 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Registration error:", error)
     return NextResponse.json({ error: "Erreur serveur lors de l'inscription" }, { status: 500 })
-  }
-}
-
-async function logAuthAction(
-  request: NextRequest,
-  actionType: string,
-  userId: string,
-  additionalData: any
-) {
-  const supabase = await createClient();
-  const ip = request.headers.get('x-forwarded-for') || request.ip;
-  const userAgent = request.headers.get('user-agent');
-
-  const { error } = await supabase.from('user_actions_log').insert([
-    {
-      user_id: userId,
-      action_type: actionType,
-      timestamp: new Date().toISOString(),
-      ip_address: ip,
-      user_agent: userAgent,
-      additional_data: additionalData,
-    },
-  ]);
-
-  if (error) {
-    console.error('Error logging user action:', error);
   }
 }

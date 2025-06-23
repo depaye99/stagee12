@@ -131,72 +131,28 @@ CREATE TABLE file_uploads (
 -- Table des évaluations
 CREATE TABLE evaluations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  stagiaire_id UUID NOT NULL REFERENCES stagiaires(id) ON DELETE CASCADE,
-  evaluateur_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  
-  -- Type et période d'évaluation
-  type VARCHAR(50) NOT NULL 
-    CHECK (type IN ('mi_parcours', 'finale', 'auto_evaluation', 'mensuelle', 'projet')),
-  periode VARCHAR(100),
-  date_evaluation DATE NOT NULL,
-  
-  -- Notes détaillées (sur 20)
-  note_globale DECIMAL(4,2) CHECK (note_globale >= 0 AND note_globale <= 20),
-  competences_techniques DECIMAL(4,2) CHECK (competences_techniques >= 0 AND competences_techniques <= 20),
-  competences_relationnelles DECIMAL(4,2) CHECK (competences_relationnelles >= 0 AND competences_relationnelles <= 20),
-  autonomie DECIMAL(4,2) CHECK (autonomie >= 0 AND autonomie <= 20),
-  initiative DECIMAL(4,2) CHECK (initiative >= 0 AND initiative <= 20),
-  ponctualite DECIMAL(4,2) CHECK (ponctualite >= 0 AND ponctualite <= 20),
-  
-  -- Évaluations qualitatives
-  points_forts TEXT,
-  points_amelioration TEXT,
+  stagiaire_id UUID REFERENCES stagiaires(id) ON DELETE CASCADE,
+  evaluateur_id UUID REFERENCES users(id) ON DELETE CASCADE,
+  type VARCHAR(50) NOT NULL CHECK (type IN ('mi_parcours', 'finale', 'auto_evaluation')),
+  note_globale DECIMAL(3,2),
+  competences_techniques DECIMAL(3,2),
+  competences_relationnelles DECIMAL(3,2),
+  autonomie DECIMAL(3,2),
   commentaires TEXT,
-  recommandations TEXT,
-  objectifs_suivants TEXT,
-  
-  -- Métadonnées
-  duree_evaluation INTEGER, -- en minutes
-  is_validated BOOLEAN DEFAULT false,
-  validated_by UUID REFERENCES users(id),
-  validated_at TIMESTAMP WITH TIME ZONE,
-  
+  date_evaluation DATE NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  
-  -- Contraintes
-  CONSTRAINT unique_evaluation_per_period UNIQUE(stagiaire_id, type, date_evaluation)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- Table des notifications
 CREATE TABLE notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  
-  -- Contenu de la notification
+  user_id UUID REFERENCES users(id) ON DELETE CASCADE,
   titre VARCHAR(255) NOT NULL,
   message TEXT NOT NULL,
-  type VARCHAR(50) DEFAULT 'info' 
-    CHECK (type IN ('info', 'success', 'warning', 'error', 'reminder')),
-  
-  -- Gestion de l'état
+  type VARCHAR(50) DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning', 'error')),
   lu BOOLEAN DEFAULT false,
   date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  date_lecture TIMESTAMP WITH TIME ZONE,
-  expire_at TIMESTAMP WITH TIME ZONE,
-  
-  -- Relations et contexte
-  related_type VARCHAR(50), -- 'demande', 'evaluation', 'document', etc.
-  related_id UUID,
-  action_url TEXT,
-  action_label VARCHAR(100),
-  
-  -- Métadonnées
-  priority VARCHAR(20) DEFAULT 'normal' 
-    CHECK (priority IN ('low', 'normal', 'high', 'critical')),
-  category VARCHAR(50),
-  metadata JSONB DEFAULT '{}',
-  
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
