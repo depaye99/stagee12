@@ -1,245 +1,219 @@
 "use client"
 
 import type React from "react"
-import { Suspense, useState } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
+import { useState } from "react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, Loader2 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
-
-interface LoginFormData {
-  email: string
-  password: string
-}
-
-function LoginForm() {
-  const [formData, setFormData] = useState<LoginFormData>({
-    email: "",
-    password: "",
-  })
-  const [showPassword, setShowPassword] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState("")
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const { toast } = useToast()
-  const redirectTo = searchParams.get('redirectTo')
-
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setIsLoading(true)
-    setError("")
-
-    // Vérifier la configuration Supabase côté client
-    if (typeof window !== 'undefined') {
-      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-      const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-      if (!supabaseUrl || !supabaseKey) {
-        setError("Configuration Supabase manquante. Vérifiez vos variables d'environnement.")
-        setIsLoading(false)
-        return
-      }
-    }
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Erreur de connexion")
-      }
-
-      toast({
-        title: "Connexion réussie",
-        description: "Redirection en cours...",
-      })
-
-      // Redirection après succès
-      const userRole = data.user?.role || "stagiaire"
-      console.log("User role for redirection:", userRole)
-
-      let targetPath = "/stagiaire"
-      
-      // Vérifier si on a un redirectTo valide
-      if (redirectTo && 
-          redirectTo !== '/auth/login' && 
-          redirectTo !== '/auth/register' && 
-          redirectTo !== '/' &&
-          !redirectTo.includes('/auth/') &&
-          redirectTo.startsWith('/')) {
-        
-        // Vérifier que la route correspond au rôle de l'utilisateur
-        const isValidRoute = 
-          (userRole === "admin" && redirectTo.startsWith("/admin")) ||
-          (userRole === "rh" && redirectTo.startsWith("/rh")) ||
-          (userRole === "tuteur" && redirectTo.startsWith("/tuteur")) ||
-          (userRole === "stagiaire" && redirectTo.startsWith("/stagiaire"))
-        
-        if (isValidRoute) {
-          targetPath = redirectTo
-        } else {
-          // Si la route ne correspond pas au rôle, rediriger vers le dashboard approprié
-          switch (userRole) {
-            case "admin":
-              targetPath = "/admin"
-              break
-            case "rh":
-              targetPath = "/rh"
-              break
-            case "tuteur":
-              targetPath = "/tuteur"
-              break
-            default:
-              targetPath = "/stagiaire"
-          }
-        }
-      } else {
-        // Pas de redirectTo valide, utiliser le dashboard par défaut
-        switch (userRole) {
-          case "admin":
-            targetPath = "/admin"
-            break
-          case "rh":
-            targetPath = "/rh"
-            break
-          case "tuteur":
-            targetPath = "/tuteur"
-            break
-          default:
-            targetPath = "/stagiaire"
-        }
-      }
-
-      console.log("Redirecting to:", targetPath)
-      window.location.href = targetPath
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Erreur de connexion"
-      console.error("Login error:", error)
-      setError(errorMessage)
-      toast({
-        title: "Erreur de connexion",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
-  }
-
-  return (
-    <Card className="w-full max-w-md">
-      <CardHeader className="space-y-1">
-        <CardTitle className="text-2xl font-bold text-center">Connexion</CardTitle>
-        <CardDescription className="text-center">Connectez-vous à votre compte</CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleInputChange}
-              placeholder="votre@email.com"
-              required
-              disabled={isLoading}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Mot de passe</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder="Votre mot de passe"
-                required
-                disabled={isLoading}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowPassword(!showPassword)}
-                disabled={isLoading}
-              >
-                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </Button>
-            </div>
-          </div>
-
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Connexion...
-              </>
-            ) : (
-              "Se connecter"
-            )}
-          </Button>
-        </form>
-
-        <div className="mt-6 text-center">
-          <p className="text-sm text-gray-600">
-            Pas encore de compte ?{" "}
-            <Link href="/auth/register" className="font-medium text-blue-600 hover:text-blue-500">
-              S'inscrire
-            </Link>
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  )
-}
+import { Sun, Languages } from "lucide-react"
+import { authService } from "@/lib/services/auth-service"
 
 export default function LoginPage() {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [error, setError] = useState("")
+  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError("")
+
+    try {
+      const { user, error: authError } = await authService.signIn(email, password)
+
+      if (authError) {
+        setError(authError.message)
+        return
+      }
+
+      if (user) {
+        // Use router.push instead of window.location.href to avoid reload
+        const routes = {
+          admin: "/admin",
+          rh: "/rh",
+          tuteur: "/tuteur",
+          stagiaire: "/stagiaire",
+        }
+
+        const redirectTo = routes[user.role as keyof typeof routes] || "/stagiaire"
+
+        // Force a small delay to ensure auth state is set
+        setTimeout(() => {
+          router.push(redirectTo)
+        }, 100)
+      }
+    } catch (err) {
+      console.error("Login error:", err)
+      setError("Erreur de connexion")
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <Suspense fallback={
-        <Card className="w-full max-w-md">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-center">
-              <Loader2 className="h-8 w-8 animate-spin" />
+    <div className="min-h-screen flex flex-col">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto">
+          {/* Logo */}
+          <div className="flex items-center">
+            <img src="/images/logo.png" alt="Bridge Technologies Solutions" className="h-12 w-auto" />
+          </div>
+
+          {/* Navigation */}
+          <nav className="hidden md:flex items-center space-x-8">
+            <Link href="/" className="text-gray-700 hover:text-gray-900 font-medium">
+              Accueil
+            </Link>
+            <Link href="/contacts" className="text-gray-700 hover:text-gray-900 font-medium">
+              Contacts
+            </Link>
+            <Link href="/entreprise" className="text-gray-700 hover:text-gray-900 font-medium">
+              L'entreprise
+            </Link>
+            <Link href="/services" className="text-gray-700 hover:text-gray-900 font-medium">
+              Services
+            </Link>
+          </nav>
+
+          {/* Right side */}
+          <div className="flex items-center space-x-4">
+            <div className="bg-black text-white px-3 py-1 rounded text-sm font-medium flex items-center">
+              <Languages className="w-4 h-4 mr-1" />
+              A-Z
             </div>
-          </CardContent>
-        </Card>
-      }>
-        <LoginForm />
-      </Suspense>
+            <Button variant="ghost" size="sm">
+              <Sun className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-1 flex">
+        {/* Left Side - Image */}
+        <div className="hidden lg:flex lg:w-1/2 relative">
+          <div
+            className="w-full bg-cover bg-center"
+            style={{
+              backgroundImage: `url('/images/hero-laptop.png')`,
+            }}
+          >
+            <div className="absolute inset-0 bg-black bg-opacity-20"></div>
+          </div>
+        </div>
+
+        {/* Right Side - Login Form */}
+        <div className="w-full lg:w-1/2 bg-gray-100 flex items-center justify-center p-8">
+          <div className="w-full max-w-md">
+            <div className="text-center mb-8">
+              <h1 className="text-2xl font-semibold text-gray-900 mb-2">Connexion à votre compte</h1>
+              <h2 className="text-xl font-medium text-gray-700">Bridge</h2>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-6">
+              {error && (
+                <Alert variant="destructive">
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div>
+                <Label htmlFor="email" className="text-gray-700 font-medium">
+                  Email
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="mt-2 bg-white border-gray-300"
+                  required
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="password" className="text-gray-700 font-medium">
+                  Mot de passe
+                </Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="mt-2 bg-white border-gray-300"
+                  required
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-black hover:bg-gray-800 text-white py-3 rounded-md font-medium"
+                disabled={loading}
+              >
+                {loading ? "Connexion..." : "Se connecter"}
+              </Button>
+
+              <div className="text-center">
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-gray-100 text-gray-500">ou</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-center">
+                <p className="text-gray-600">
+                  Vous n'avez pas de compte?{" "}
+                  <Link href="/auth/register" className="text-blue-600 hover:text-blue-500 font-medium">
+                    S'inscrire
+                  </Link>
+                </p>
+              </div>
+
+              <div className="text-xs text-gray-500 text-center leading-relaxed">
+                En vous connectant vous acceptez nos{" "}
+                <Link href="/privacy" className="underline hover:text-gray-700">
+                  politiques de confidentialité
+                </Link>{" "}
+                et nos{" "}
+                <Link href="/terms" className="underline hover:text-gray-700">
+                  conditions d'utilisation
+                </Link>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between max-w-7xl mx-auto text-sm text-gray-600">
+          <div className="flex items-center space-x-4">
+            <span>🎓 @BridgeTech-Solutions</span>
+            <span>Tous droits réservés</span>
+          </div>
+          <div className="flex items-center space-x-6">
+            <Link href="/terms" className="hover:text-gray-900">
+              Condition d'utilisation
+            </Link>
+            <Link href="/privacy" className="hover:text-gray-900">
+              Politique de confidentialité
+            </Link>
+            <Link href="/contact" className="hover:text-gray-900">
+              Contact
+            </Link>
+          </div>
+        </div>
+      </footer>
     </div>
   )
 }
