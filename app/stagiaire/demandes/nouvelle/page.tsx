@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Plus } from "lucide-react"
+import { Plus, Upload } from "lucide-react"
 
 export default function NouvelleDemandePage() {
   const [user, setUser] = useState<any>(null)
@@ -40,41 +41,123 @@ export default function NouvelleDemandePage() {
     nombre_mois: "6",
   })
   const [loading, setLoading] = useState(false)
+  const [authLoading, setAuthLoading] = useState(true)
+  const [uploadingFiles, setUploadingFiles] = useState<Set<string>>(new Set())
   const router = useRouter()
+  const supabase = createClient()
   const { toast } = useToast()
 
   useEffect(() => {
-    // Check if user is logged in (offline mode)
-    const storedUser = localStorage.getItem("offline_user")
-    if (storedUser) {
+    const checkAuth = async () => {
       try {
-        const userData = JSON.parse(storedUser)
-        setUser(userData)
+        console.log("🔍 Vérification de l'authentification...")
+
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession()
+
+        if (sessionError || !session?.user) {
+          console.log("❌ Pas de session utilisateur")
+          router.push("/auth/login")
+          return
+        }
+
+        // Récupérer le profil utilisateur
+        const { data: profile, error: profileError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError || !profile) {
+          console.error("❌ Erreur profil:", profileError)
+          router.push("/auth/login")
+          return
+        }
+
+        if (profile.role !== "stagiaire") {
+          console.log("❌ Rôle incorrect:", profile.role)
+          router.push(`/${profile.role}`)
+          return
+        }
+
+        console.log("✅ Authentification réussie")
+        setUser(profile)
       } catch (error) {
-        console.error("Error parsing stored user data:", error)
+        console.error("💥 Erreur lors de la vérification auth:", error)
         router.push("/auth/login")
+      } finally {
+        setAuthLoading(false)
       }
-    } else {
-      // No user found, redirect to login
-      router.push("/auth/login")
-    }
-  }, [router])
-
-  const handleFileUpload = (documentType: string, file: File) => {
-    if (documentType === "fichier_justificatif") {
-      setCongeData((prev) => ({ ...prev, fichier_justificatif: file }))
-      return
     }
 
-    if (documentType === "document_prolongation") {
-      setProlongationData((prev) => ({ ...prev, document_prolongation: file }))
-      return
-    }
+    checkAuth()
+  }, [router, supabase])
 
-    setDocuments((prev) => ({
-      ...prev,
-      [documentType]: file,
-    }))
+  const uploadFile = async (file: File, documentType: string): Promise<string | null> => {
+    try {
+      setUploadingFiles((prev) => new Set(prev).add(documentType))
+
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("type", documentType)
+      formData.append("isPublic", "false")
+
+      const response = await fetch("/api/documents/upload", {
+        method: "POST",
+        body: formData,
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors de l'upload")
+      }
+
+      console.log("✅ Fichier uploadé:", result.data)
+      return result.data.url
+    } catch (error) {
+      console.error("❌ Erreur upload:", error)
+      toast({
+        title: "Erreur",
+        description: `Erreur lors de l'upload de ${file.name}`,
+        variant: "destructive",
+      })
+      return null
+    } finally {
+      setUploadingFiles((prev) => {
+        const newSet = new Set(prev)
+        newSet.delete(documentType)
+        return newSet
+      })
+    }
+  }
+
+  const handleFileUpload = async (documentType: string, file: File) => {
+    console.log("📤 Upload fichier:", { documentType, fileName: file.name })
+
+    // Upload du fichier
+    const fileUrl = await uploadFile(file, documentType)
+
+    if (fileUrl) {
+      // Mettre à jour l'état selon le type de demande
+      if (documentType === "fichier_justificatif") {
+        setCongeData((prev) => ({ ...prev, fichier_justificatif: file }))
+      } else if (documentType === "document_prolongation") {
+        setProlongationData((prev) => ({ ...prev, document_prolongation: file }))
+      } else {
+        setDocuments((prev) => ({
+          ...prev,
+          [documentType]: file,
+        }))
+      }
+
+      toast({
+        title: "Succès",
+        description: `${file.name} uploadé avec succès`,
+      })
+    }
   }
 
   const validateForm = () => {
@@ -110,20 +193,62 @@ export default function NouvelleDemandePage() {
 
     setLoading(true)
     try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+      // Construire le titre selon le type de demande
+      let titre = ""
+      switch (demandType) {
+        case "stage_academique":
+          titre = "Demande de stage académique"
+          break
+        case "stage_professionnel":
+          titre = "Demande de stage professionnel"
+          break
+        case "demande_conge":
+          titre = "Demande de congé"
+          break
+        case "demande_prolongation":
+          titre = "Demande de prolongation de stage"
+          break
+        default:
+          titre = `Demande de ${demandType.replace("_", " ")}`
+      }
+
+      const requestData = {
+        type: demandType,
+        titre,
+        description: "",
+        documents,
+        periode,
+        congeData,
+        prolongationData,
+      }
+
+      console.log("📤 Envoi de la demande:", requestData)
+
+      const response = await fetch("/api/stagiaire/demandes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors de la création")
+      }
 
       toast({
         title: "Succès",
-        description: `Demande de ${demandType.replace("_", " ")} soumise avec succès (mode offline)`,
+        description: `${titre} soumise avec succès`,
       })
 
-      // Redirect to demandes list
       router.push("/stagiaire/demandes")
     } catch (error) {
+      console.error("❌ Erreur lors de la soumission:", error)
       toast({
         title: "Erreur",
-        description: "Erreur lors de la soumission",
+        description: error instanceof Error ? error.message : "Erreur lors de la soumission",
         variant: "destructive",
       })
     } finally {
@@ -157,6 +282,7 @@ export default function NouvelleDemandePage() {
     }
 
     const uploadedFile = getUploadedFile()
+    const isUploading = uploadingFiles.has(documentType)
 
     return (
       <div className="space-y-3">
@@ -170,29 +296,40 @@ export default function NouvelleDemandePage() {
             onChange={(e) => e.target.files?.[0] && handleFileUpload(documentType, e.target.files[0])}
             className="hidden"
             id={id}
+            disabled={isUploading}
           />
           <label htmlFor={id} className="cursor-pointer">
             <div className="text-gray-500 mb-3 text-sm">{placeholder}</div>
             <div className="bg-black text-white rounded-lg p-2 inline-flex items-center justify-center w-8 h-8">
-              <Plus className="h-4 w-4" />
+              {isUploading ? (
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
             </div>
           </label>
           {uploadedFile && <div className="mt-2 text-sm text-green-600">✓ {(uploadedFile as File)?.name}</div>}
+          {isUploading && <div className="mt-2 text-sm text-blue-600">Upload en cours...</div>}
         </div>
       </div>
     )
   }
 
-  // Show loading while checking authentication
-  if (!user) {
+  // Affichage du loading pendant la vérification d'authentification
+  if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Vérification de l'authentification...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Vérification de l'authentification...</p>
         </div>
       </div>
     )
+  }
+
+  // Si pas d'utilisateur après vérification, ne rien afficher (redirection en cours)
+  if (!user) {
+    return null
   }
 
   return (
@@ -211,8 +348,13 @@ export default function NouvelleDemandePage() {
                     ? "DE CONGE"
                     : "DE PROLONGATION"}
             </div>
-            <div className="text-sm text-gray-600">
-              Connecté en tant que: <span className="font-semibold">{user.name}</span>
+            <div className="flex items-center space-x-4">
+              <div className="text-sm text-gray-600">
+                Connecté en tant que: <span className="font-semibold">{user.name}</span>
+              </div>
+              <Button variant="outline" onClick={() => router.back()}>
+                Retour
+              </Button>
             </div>
           </div>
         </div>
@@ -222,7 +364,19 @@ export default function NouvelleDemandePage() {
         <div className="bg-white rounded-3xl p-12 shadow-sm border-2 border-gray-200">
           {/* Logo */}
           <div className="text-center mb-8">
-            <img src="/images/logo.png" alt="Bridge Technologies Solutions" className="h-20 mx-auto mb-6" />
+            <div className="inline-flex items-center space-x-3 mb-6">
+              <div className="relative">
+                <div className="w-12 h-12 border-3 border-blue-500 rounded-full flex items-center justify-center">
+                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
+                </div>
+                <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full"></div>
+              </div>
+              <div className="text-left">
+                <div className="text-2xl font-bold text-black">BRIDGE</div>
+                <div className="text-sm text-blue-500 font-medium">Technologies</div>
+                <div className="text-xs text-gray-600">Solutions</div>
+              </div>
+            </div>
           </div>
 
           <h1 className="text-2xl font-bold text-center mb-12">FORMULAIRE DE DEMANDE</h1>
@@ -553,13 +707,18 @@ export default function NouvelleDemandePage() {
           <div className="text-center">
             <Button
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || uploadingFiles.size > 0}
               className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-full text-lg font-medium disabled:opacity-50"
             >
               {loading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   Envoi en cours...
+                </>
+              ) : uploadingFiles.size > 0 ? (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Upload en cours ({uploadingFiles.size})...
                 </>
               ) : (
                 "Envoyer"

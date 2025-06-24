@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Vérifier l'authentification
     const {
@@ -72,7 +72,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createClient()
+    const supabase = await createClient()
 
     // Vérifier l'authentification
     const {
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     console.log("📝 POST - Données reçues:", body)
 
-    const { type, titre, description } = body
+    const { type, titre, description, documents, periode, congeData, prolongationData } = body
 
     // Validation
     if (!type || !titre) {
@@ -126,15 +126,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Type et titre requis" }, { status: 400 })
     }
 
-    // Créer la demande
+    // Construire la description selon le type de demande
+    let finalDescription = description || ""
+
+    if (type === "demande_conge" && congeData) {
+      finalDescription = `Demande de congé du ${congeData.date_debut} au ${congeData.date_fin}. Motif: ${congeData.description}`
+    } else if (type === "demande_prolongation" && prolongationData) {
+      finalDescription = `Demande de prolongation de stage. Période d'extension: ${prolongationData.periode_extension}`
+    } else if (!finalDescription) {
+      finalDescription = `Demande de ${type.replace("_", " ")}`
+    }
+
+    // Construire la liste des documents requis
+    const documentsRequis: string[] = []
+    if (documents) {
+      Object.keys(documents).forEach((key) => {
+        if (documents[key]) {
+          documentsRequis.push(key)
+        }
+      })
+    }
+
+    // Créer la demande avec seulement les colonnes existantes
     const demandeData = {
       stagiaire_id: stagiaire.id,
       tuteur_id: stagiaire.tuteur_id,
       type,
       titre,
-      description: description || "",
-      statut: "en_attente",
+      description: finalDescription,
+      statut: "en_attente" as const,
       date_demande: new Date().toISOString(),
+      documents_requis: documentsRequis,
     }
 
     console.log("💾 POST - Création demande avec données:", demandeData)

@@ -1,6 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { settingsService } from "@/lib/services/settings-service"
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,67 +16,70 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get("file") as File
-    const titre = formData.get("titre") as string
     const type = formData.get("type") as string
+    const isPublic = formData.get("isPublic") === "true"
 
-    if (!file || !titre || !type) {
-      return NextResponse.json({ error: "Données manquantes" }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ error: "Aucun fichier fourni" }, { status: 400 })
     }
 
-    // **UTILISATION DES PARAMÈTRES SYSTÈME** - Approbation requise
-    const requireApproval = await settingsService.getSetting("require_document_approval")
+    console.log("📄 Upload document:", { fileName: file.name, size: file.size, type })
 
-    console.log("📄 Upload document avec approbation requise:", requireApproval)
+    // Générer un nom de fichier unique
+    const fileExt = file.name.split(".").pop()
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+    const filePath = `documents/${user.id}/${fileName}`
 
-    // Upload du fichier vers Supabase Storage
-    const fileName = `${Date.now()}-${file.name}`
-    const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(fileName, file)
+    // Upload vers Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(filePath, file)
 
     if (uploadError) {
-      throw uploadError
+      console.error("❌ Erreur upload:", uploadError)
+      return NextResponse.json({ error: "Erreur lors de l'upload: " + uploadError.message }, { status: 500 })
     }
 
-    // **IMPACT RÉEL DES PARAMÈTRES** - Statut selon la configuration
-    const statut = requireApproval ? "en_attente" : "approuve"
+    // Obtenir l'URL publique
+    const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath)
 
-    // Créer l'entrée document
-    const { data: document, error: docError } = await supabase
+    // Enregistrer les métadonnées en base
+    const { data: docData, error: docError } = await supabase
       .from("documents")
-      .insert({
-        titre,
-        type,
-        chemin_fichier: uploadData.path,
-        taille: file.size,
-        user_id: user.id,
-        statut, // Statut basé sur les paramètres système
-      })
+      .insert([
+        {
+          nom: file.name,
+          type: type || file.type,
+          taille: file.size,
+          url: urlData.publicUrl,
+          chemin_fichier: filePath,
+          user_id: user.id,
+          is_public: isPublic,
+          statut: "approuve",
+        },
+      ])
       .select()
       .single()
 
     if (docError) {
+      console.error("❌ Erreur base de données:", docError)
       // Supprimer le fichier si erreur
-      await supabase.storage.from("documents").remove([fileName])
-      throw docError
+      await supabase.storage.from("documents").remove([filePath])
+      return NextResponse.json({ error: "Erreur lors de l'enregistrement: " + docError.message }, { status: 500 })
     }
 
-    // **NOTIFICATIONS BASÉES SUR LES PARAMÈTRES**
-    const notificationEnabled = await settingsService.getSetting("notification_email_enabled")
-
-    if (notificationEnabled && requireApproval) {
-      // Notifier les RH pour approbation
-      console.log("📧 Notification envoyée pour approbation document")
-      // Ici on pourrait envoyer un email ou créer une notification
-    }
+    console.log("✅ Document uploadé avec succès:", docData.id)
 
     return NextResponse.json({
       success: true,
-      message: requireApproval
-        ? "Document uploadé et en attente d'approbation"
-        : "Document uploadé et approuvé automatiquement",
-      data: document,
+      data: {
+        id: docData.id,
+        url: urlData.publicUrl,
+        name: file.name,
+        size: file.size,
+      },
+      message: "Document uploadé avec succès",
     })
   } catch (error) {
-    console.error("Erreur lors de l'upload:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    console.error("💥 Erreur lors de l'upload:", error)
+    return NextResponse.json({ error: "Erreur serveur: " + (error as Error).message }, { status: 500 })
   }
 }
