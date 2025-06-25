@@ -14,9 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { authService } from "@/lib/services/auth-service"
-import { useTranslation } from "@/lib/i18n"
-import { useAppStore } from "@/lib/store"
+import { createClient } from "@/lib/supabase/client"
 import { LanguageSelector } from "@/components/language-selector"
 import { ThemeToggle } from "@/components/theme-toggle"
 
@@ -25,11 +23,20 @@ interface HeaderProps {
   showAuth?: boolean
 }
 
+interface Notification {
+  id: string
+  titre: string
+  message: string
+  type: string
+  lu: boolean
+  created_at: string
+}
+
 export function Header({ user, showAuth = false }: HeaderProps) {
-  const [notifications, setNotifications] = useState<any[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
   const router = useRouter()
-  const { language, primaryColor } = useAppStore()
-  const { t } = useTranslation(language)
+  const supabase = createClient()
 
   useEffect(() => {
     if (user) {
@@ -38,28 +45,68 @@ export function Header({ user, showAuth = false }: HeaderProps) {
   }, [user])
 
   const loadNotifications = async () => {
-    // TODO: Implémenter le chargement des notifications depuis Supabase
+    if (loadingNotifications) return
+
+    setLoadingNotifications(true)
+    try {
+      console.log("🔔 Chargement des notifications...")
+
+      const response = await fetch("/api/notifications")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log("✅ Notifications chargées:", data.data?.length || 0)
+        setNotifications(data.data || [])
+      } else {
+        console.error("❌ Erreur API notifications:", data.error)
+      }
+    } catch (error) {
+      console.error("💥 Erreur lors du chargement des notifications:", error)
+      // Ne pas afficher d'erreur à l'utilisateur pour les notifications
+      setNotifications([])
+    } finally {
+      setLoadingNotifications(false)
+    }
   }
 
   const handleLogout = async () => {
     try {
-      await authService.signOut()
+      await supabase.auth.signOut()
       router.push("/auth/login")
     } catch (error) {
       console.error("Erreur lors de la déconnexion:", error)
     }
   }
 
+  const markAsRead = async (notificationId: string) => {
+    try {
+      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+        method: "POST",
+      })
+
+      if (response.ok) {
+        setNotifications((prev) => prev.map((notif) => (notif.id === notificationId ? { ...notif, lu: true } : notif)))
+      }
+    } catch (error) {
+      console.error("Erreur lors du marquage comme lu:", error)
+    }
+  }
+
   const getRoleLabel = (role: string) => {
     switch (role) {
       case "admin":
-        return t("admin")
+        return "Administrateur"
       case "rh":
-        return t("hr")
+        return "Ressources Humaines"
       case "tuteur":
-        return t("tutor")
+        return "Tuteur"
       case "stagiaire":
-        return t("intern")
+        return "Stagiaire"
       default:
         return role
     }
@@ -80,34 +127,40 @@ export function Header({ user, showAuth = false }: HeaderProps) {
     }
   }
 
+  const unreadCount = notifications.filter((n) => !n.lu).length
+
   return (
-    <header className="bg-white border-b border-gray-200 px-6 py-4" style={{ borderColor: primaryColor + "20" }}>
+    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-6 py-4">
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
-          <img 
-            src="/images/logo.png" 
-            alt="Bridge Technologies Solutions" 
-            className="h-10 w-auto"
-          />
+          <img src="/images/logo.png" alt="Bridge Technologies Solutions" className="h-10 w-auto" />
         </Link>
 
         {!showAuth && (
           <nav className="hidden md:flex items-center space-x-8">
             <Link
               href="/"
-              className="text-foreground hover:text-blue-500 font-medium"
-              style={{ "--hover-color": primaryColor } as any}
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
             >
-              {t("home")}
+              Accueil
             </Link>
-            <Link href="/contacts" className="text-foreground hover:text-blue-500 font-medium">
-              {t("contacts")}
+            <Link
+              href="/contacts"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+            >
+              Contacts
             </Link>
-            <Link href="/entreprise" className="text-foreground hover:text-blue-500 font-medium">
-              {t("company")}
+            <Link
+              href="/entreprise"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+            >
+              Entreprise
             </Link>
-            <Link href="/services" className="text-foreground hover:text-blue-500 font-medium">
-              {t("services")}
+            <Link
+              href="/services"
+              className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
+            >
+              Services
             </Link>
           </nav>
         )}
@@ -120,31 +173,66 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="relative">
                     <Bell className="h-5 w-5" />
-                    {notifications.length > 0 && (
-                      <span
-                        className="absolute -top-1 -right-1 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-                        style={{ backgroundColor: primaryColor }}
-                      >
-                        {notifications.length}
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                        {unreadCount > 9 ? "9+" : unreadCount}
                       </span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>{t("notification")}</DropdownMenuLabel>
+                  <DropdownMenuLabel className="flex items-center justify-between">
+                    <span>Notifications</span>
+                    {unreadCount > 0 && (
+                      <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                        {unreadCount} non lues
+                      </span>
+                    )}
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {notifications.length === 0 ? (
-                    <div className="p-4 text-center text-gray-500">{t("noData")}</div>
+
+                  {loadingNotifications ? (
+                    <div className="p-4 text-center text-gray-500">
+                      <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                      <p className="mt-2 text-sm">Chargement...</p>
+                    </div>
+                  ) : notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500">
+                      <Bell className="mx-auto h-8 w-8 text-gray-400 mb-2" />
+                      <p className="text-sm">Aucune notification</p>
+                    </div>
                   ) : (
-                    notifications.map((notification) => (
-                      <DropdownMenuItem key={notification.id} className="flex flex-col items-start p-4">
-                        <div className="font-medium">{notification.titre}</div>
-                        <div className="text-sm text-gray-500">{notification.message}</div>
-                        <div className="text-xs text-gray-400">
-                          {new Date(notification.date).toLocaleDateString("fr-FR")}
-                        </div>
-                      </DropdownMenuItem>
-                    ))
+                    <div className="max-h-96 overflow-y-auto">
+                      {notifications.map((notification) => (
+                        <DropdownMenuItem
+                          key={notification.id}
+                          className={`flex flex-col items-start p-4 cursor-pointer ${
+                            !notification.lu ? "bg-blue-50 dark:bg-blue-900/20" : ""
+                          }`}
+                          onClick={() => !notification.lu && markAsRead(notification.id)}
+                        >
+                          <div className="flex items-start justify-between w-full">
+                            <div className="flex-1">
+                              <div className="font-medium text-sm">{notification.titre}</div>
+                              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                                {notification.message}
+                              </div>
+                              <div className="text-xs text-gray-400 mt-2">
+                                {new Date(notification.created_at).toLocaleDateString("fr-FR", {
+                                  day: "numeric",
+                                  month: "short",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                            {!notification.lu && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full ml-2 mt-1 flex-shrink-0"></div>
+                            )}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -155,24 +243,22 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   <Button variant="ghost" className="flex items-center space-x-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback>
-                        {user.first_name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || "U"}
+                        {user.name?.[0]?.toUpperCase() || user.email?.[0]?.toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                     <div className="hidden md:block text-left">
-                      <div className="text-sm font-medium">
-                        {user.first_name} {user.last_name}
-                      </div>
-                      <div className="text-xs text-gray-500">{getRoleLabel(user.role)}</div>
+                      <div className="text-sm font-medium">{user.name || user.email}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{getRoleLabel(user.role)}</div>
                     </div>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>{t("profile")}</DropdownMenuLabel>
+                  <DropdownMenuLabel>Mon compte</DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href={getProfileLink(user.role)} className="flex items-center">
                       <User className="mr-2 h-4 w-4" />
-                      {t("profile")}
+                      Profil
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
@@ -184,7 +270,7 @@ export function Header({ user, showAuth = false }: HeaderProps) {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="flex items-center text-red-600">
                     <LogOut className="mr-2 h-4 w-4" />
-                    {t("logout")}
+                    Se déconnecter
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>

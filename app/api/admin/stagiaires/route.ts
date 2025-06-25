@@ -3,26 +3,41 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
   try {
+    console.log("🔍 API Admin Stagiaires - Début de la requête")
+
     const supabase = await createClient()
 
     // Vérifier l'authentification
     const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
+    if (sessionError || !session?.user) {
+      console.log("❌ Pas de session utilisateur:", sessionError?.message)
+      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
     }
+
+    console.log("✅ Session trouvée pour:", session.user.email)
 
     // Vérifier les permissions admin
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    const { data: profile, error: profileError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
 
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
+    if (profileError) {
+      console.error("❌ Erreur récupération profil:", profileError)
+      return NextResponse.json({ success: false, error: "Erreur de vérification des permissions" }, { status: 500 })
     }
 
-    console.log("🔍 Récupération des stagiaires...")
+    if (!profile || profile.role !== "admin") {
+      console.log("❌ Utilisateur non autorisé:", profile?.role)
+      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
+    }
+
+    console.log("✅ Utilisateur admin confirmé")
 
     // Récupérer tous les stagiaires avec leurs relations
     const { data: stagiaires, error } = await supabase
@@ -36,14 +51,17 @@ export async function GET() {
 
     if (error) {
       console.error("❌ Erreur récupération stagiaires:", error)
-      throw error
+      return NextResponse.json(
+        { success: false, error: `Erreur lors de la récupération des stagiaires: ${error.message}` },
+        { status: 500 },
+      )
     }
 
     console.log("✅ Stagiaires récupérés:", stagiaires?.length || 0)
 
     return NextResponse.json({ success: true, data: stagiaires || [] })
-  } catch (error) {
+  } catch (error: any) {
     console.error("💥 Erreur API stagiaires:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
   }
 }
