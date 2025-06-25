@@ -58,6 +58,24 @@ export default function StagiaireDemandeDetailPage() {
       const { data: stagiaire } = await supabase.from("stagiaires").select("*").eq("user_id", profile.id).single()
       setStagiaireInfo(stagiaire)
 
+      // Vérifier que l'ID n'est pas une route spéciale
+      if (params.id === "nouvelle") {
+        router.push("/stagiaire/demandes/nouvelle")
+        return
+      }
+
+      // Vérifier que l'ID est un UUID valide
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+      if (!uuidRegex.test(params.id as string)) {
+        toast({
+          title: "Erreur",
+          description: "ID de demande invalide",
+          variant: "destructive",
+        })
+        router.push("/stagiaire/demandes")
+        return
+      }
+
       if (stagiaire) {
         await loadDemande(stagiaire.id)
       }

@@ -78,7 +78,7 @@ export default function AdminStagiairesPage() {
         .from("stagiaires")
         .select(`
           *,
-          users!user_id(id, name, email, phone),
+          user:users!user_id(id, name, email, phone),
           tuteur:users!tuteur_id(id, name, email)
         `)
         .order("created_at", { ascending: false })
@@ -269,8 +269,8 @@ export default function AdminStagiairesPage() {
               <TableBody>
                 {filteredStagiaires.map((stagiaire) => (
                   <TableRow key={stagiaire.id}>
-                    <TableCell className="font-medium">{stagiaire.users?.name || "N/A"}</TableCell>
-                    <TableCell>{stagiaire.users?.email || "N/A"}</TableCell>
+                    <TableCell className="font-medium">{stagiaire.user?.name || "N/A"}</TableCell>
+                    <TableCell>{stagiaire.user?.email || "N/A"}</TableCell>
                     <TableCell>{stagiaire.entreprise || "-"}</TableCell>
                     <TableCell>{stagiaire.poste || "-"}</TableCell>
                     <TableCell>{stagiaire.tuteur?.name || "Non assigné"}</TableCell>

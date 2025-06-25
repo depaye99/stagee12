@@ -24,7 +24,7 @@ interface StagiaireWithUser {
   statut: string
   notes?: string
   created_at: string
-  users?: {
+  user?: {
     name: string
     email: string
     phone?: string
@@ -77,7 +77,7 @@ export default function RHStagiairesPage() {
         .from("stagiaires")
         .select(`
           *,
-          users!user_id(name, email, phone),
+          user:users!user_id(name, email, phone),
           tuteur:users!tuteur_id(name, email)
         `)
         .order("created_at", { ascending: false })
@@ -101,8 +101,8 @@ export default function RHStagiairesPage() {
     if (searchQuery) {
       filtered = filtered.filter(
         (stagiaire) =>
-          stagiaire.users?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          stagiaire.users?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          stagiaire.user?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          stagiaire.user?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
           stagiaire.entreprise?.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
@@ -284,8 +284,8 @@ export default function RHStagiairesPage() {
                   <TableRow key={stagiaire.id}>
                     <TableCell>
                       <div>
-                        <div className="font-medium">{stagiaire.users?.name || "N/A"}</div>
-                        <div className="text-sm text-gray-500">{stagiaire.users?.email}</div>
+                        <div className="font-medium">{stagiaire.user?.name || "N/A"}</div>
+                        <div className="text-sm text-gray-500">{stagiaire.user?.email}</div>
                       </div>
                     </TableCell>
                     <TableCell>{stagiaire.entreprise || "-"}</TableCell>
