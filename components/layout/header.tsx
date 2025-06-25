@@ -85,18 +85,11 @@ export function Header({ user, showAuth = false }: HeaderProps) {
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
           <div className="flex items-center">
-            <div className="relative mr-3">
-              <div
-                className="w-8 h-8 border-2 rounded-full flex items-center justify-center"
-                style={{ borderColor: primaryColor }}
-              >
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: primaryColor }}></div>
-              </div>
-              <div
-                className="absolute -top-1 -right-1 w-3 h-3 rounded-full"
-                style={{ backgroundColor: primaryColor }}
-              ></div>
-            </div>
+            <img 
+              src="/images/logo.png" 
+              alt="Bridge Technologies Solutions" 
+              className="h-10 w-auto mr-3"
+            />
             <div>
               <div className="font-bold text-lg text-foreground">BRIDGE</div>
               <div className="text-sm font-medium" style={{ color: primaryColor }}>

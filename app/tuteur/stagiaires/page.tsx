@@ -20,7 +20,7 @@ interface StagiaireWithUser {
   date_fin?: string
   statut: string
   notes?: string
-  users?: {
+  user?: {
     name: string
     email: string
     phone?: string
@@ -54,29 +54,27 @@ export default function TuteurStagiairesPage() {
       }
 
       setUser(profile)
-      await loadMesStagiaires(session.user.id)
+      await loadMesStagiaires()
       setLoading(false)
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const loadMesStagiaires = async (tuteurId: string) => {
+  const loadMesStagiaires = async () => {
     try {
-      const { data, error } = await supabase
-        .from("stagiaires")
-        .select(`
-          *,
-          users!user_id(name, email, phone)
-        `)
-        .eq("tuteur_id", tuteurId)
-        .order("created_at", { ascending: false })
+      const response = await fetch("/api/tuteur/stagiaires")
+      const result = await response.json()
 
-      if (error) throw error
-      setStagiaires(data || [])
-      setFilteredStagiaires(data || [])
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors du chargement")
+      }
+
+      console.log("✅ Stagiaires chargés:", result.data?.length || 0)
+      setStagiaires(result.data || [])
+      setFilteredStagiaires(result.data || [])
     } catch (error) {
-      console.error("Erreur lors du chargement des stagiaires:", error)
+      console.error("❌ Erreur lors du chargement des stagiaires:", error)
       toast({
         title: "Erreur",
         description: "Impossible de charger vos stagiaires",
@@ -91,8 +89,8 @@ export default function TuteurStagiairesPage() {
     if (searchQuery) {
       filtered = filtered.filter(
         (stagiaire) =>
-          stagiaire.users?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          stagiaire.users?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          stagiaire.user?.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          stagiaire.user?.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
           stagiaire.entreprise?.toLowerCase().includes(searchQuery.toLowerCase()),
       )
     }
@@ -212,10 +210,10 @@ export default function TuteurStagiairesPage() {
             <Card key={stagiaire.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">{stagiaire.users?.name || "N/A"}</CardTitle>
+                  <CardTitle className="text-lg">{stagiaire.user?.name || "N/A"}</CardTitle>
                   <Badge className={getStatusBadgeColor(stagiaire.statut)}>{stagiaire.statut}</Badge>
                 </div>
-                <p className="text-sm text-gray-500">{stagiaire.users?.email}</p>
+                <p className="text-sm text-gray-500">{stagiaire.user?.email}</p>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
@@ -233,7 +231,7 @@ export default function TuteurStagiairesPage() {
                       {formatDate(stagiaire.date_debut)} - {formatDate(stagiaire.date_fin)}
                     </p>
                   </div>
-                  {stagiaire.statut === "actif" && (
+                  {stagiaire.statut === "actif" && stagiaire.date_debut && stagiaire.date_fin && (
                     <div>
                       <p className="text-sm font-medium text-gray-600">Progression</p>
                       <div className="w-full bg-gray-200 rounded-full h-2">

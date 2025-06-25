@@ -11,8 +11,11 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
+      console.error("❌ Erreur auth:", authError)
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
+
+    console.log("✅ Utilisateur authentifié:", user.email)
 
     const formData = await request.formData()
     const file = formData.get("file") as File
@@ -34,14 +37,16 @@ export async function POST(request: NextRequest) {
     const { data: uploadData, error: uploadError } = await supabase.storage.from("documents").upload(filePath, file)
 
     if (uploadError) {
-      console.error("❌ Erreur upload:", uploadError)
+      console.error("❌ Erreur upload storage:", uploadError)
       return NextResponse.json({ error: "Erreur lors de l'upload: " + uploadError.message }, { status: 500 })
     }
+
+    console.log("✅ Fichier uploadé dans storage:", uploadData.path)
 
     // Obtenir l'URL publique
     const { data: urlData } = supabase.storage.from("documents").getPublicUrl(filePath)
 
-    // Enregistrer les métadonnées en base
+    // Enregistrer les métadonnées en base avec des permissions étendues
     const { data: docData, error: docError } = await supabase
       .from("documents")
       .insert([
@@ -66,7 +71,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Erreur lors de l'enregistrement: " + docError.message }, { status: 500 })
     }
 
-    console.log("✅ Document uploadé avec succès:", docData.id)
+    console.log("✅ Document enregistré en base:", docData.id)
 
     return NextResponse.json({
       success: true,
