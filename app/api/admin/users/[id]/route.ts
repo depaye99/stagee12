@@ -12,38 +12,32 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    // Vérifier le rôle admin
+    // Vérifier les permissions admin
     const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
-    }
-
-    // Vérifier que l'ID est un UUID valide
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(params.id)) {
-      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
     // Récupérer l'utilisateur
     const { data: userData, error } = await supabase.from("users").select("*").eq("id", params.id).single()
 
     if (error) {
-      console.error("Erreur Supabase:", error)
+      console.error("❌ Erreur récupération utilisateur:", error)
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
     }
 
     return NextResponse.json({ success: true, data: userData })
   } catch (error) {
-    console.error("Erreur API:", error)
+    console.error("💥 Erreur API utilisateur:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
   try {
     const supabase = await createClient()
 
@@ -54,29 +48,32 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    // Vérifier le rôle admin
+    // Vérifier les permissions admin
     const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
-    }
-
-    // Vérifier que l'ID est un UUID valide
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(params.id)) {
-      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
     const body = await request.json()
+    const { name, email, phone, role, department, position, is_active } = body
+
+    console.log("📝 Mise à jour utilisateur:", { id: params.id, ...body })
 
     // Mettre à jour l'utilisateur
     const { data: updatedUser, error } = await supabase
       .from("users")
       .update({
-        ...body,
+        name,
+        email,
+        phone,
+        role,
+        department,
+        position,
+        is_active,
         updated_at: new Date().toISOString(),
       })
       .eq("id", params.id)
@@ -84,13 +81,19 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) {
-      console.error("Erreur mise à jour:", error)
-      return NextResponse.json({ error: "Erreur lors de la mise à jour" }, { status: 500 })
+      console.error("❌ Erreur mise à jour:", error)
+      throw error
     }
 
-    return NextResponse.json({ success: true, data: updatedUser })
+    console.log("✅ Utilisateur mis à jour:", updatedUser)
+
+    return NextResponse.json({
+      success: true,
+      data: updatedUser,
+      message: "Utilisateur mis à jour avec succès",
+    })
   } catch (error) {
-    console.error("Erreur API:", error)
+    console.error("💥 Erreur mise à jour utilisateur:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
@@ -106,45 +109,39 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    // Vérifier le rôle admin
+    // Vérifier les permissions admin
     const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    // Vérifier que l'ID est un UUID valide
-    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-    if (!uuidRegex.test(params.id)) {
-      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+    // Désactiver l'utilisateur au lieu de le supprimer
+    const { data: deactivatedUser, error } = await supabase
+      .from("users")
+      .update({
+        is_active: false,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", params.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error("❌ Erreur désactivation:", error)
+      throw error
     }
 
-    // Supprimer d'abord les entrées liées
-    await supabase.from("stagiaires").delete().eq("user_id", params.id)
-    await supabase.from("demandes").delete().eq("stagiaire_id", params.id)
-    await supabase.from("notifications").delete().eq("user_id", params.id)
-
-    // Supprimer l'utilisateur de notre table
-    const { error: deleteError } = await supabase.from("users").delete().eq("id", params.id)
-
-    if (deleteError) {
-      console.error("Erreur suppression:", deleteError)
-      return NextResponse.json({ error: "Erreur lors de la suppression" }, { status: 500 })
-    }
-
-    // Supprimer l'utilisateur de Supabase Auth
-    try {
-      await supabase.auth.admin.deleteUser(params.id)
-    } catch (authDeleteError) {
-      console.warn("Erreur suppression auth (peut être normal):", authDeleteError)
-    }
-
-    return NextResponse.json({ success: true, message: "Utilisateur supprimé avec succès" })
+    return NextResponse.json({
+      success: true,
+      data: deactivatedUser,
+      message: "Utilisateur désactivé avec succès",
+    })
   } catch (error) {
-    console.error("Erreur API:", error)
+    console.error("💥 Erreur désactivation utilisateur:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

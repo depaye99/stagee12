@@ -84,20 +84,11 @@ export function Header({ user, showAuth = false }: HeaderProps) {
     <header className="bg-white border-b border-gray-200 px-6 py-4" style={{ borderColor: primaryColor + "20" }}>
       <div className="flex items-center justify-between">
         <Link href="/" className="flex items-center space-x-2">
-          <div className="flex items-center">
-            <img 
-              src="/images/logo.png" 
-              alt="Bridge Technologies Solutions" 
-              className="h-10 w-auto mr-3"
-            />
-            <div>
-              <div className="font-bold text-lg text-foreground">BRIDGE</div>
-              <div className="text-sm font-medium" style={{ color: primaryColor }}>
-                Technologies
-              </div>
-              <div className="text-xs text-muted-foreground">Solutions</div>
-            </div>
-          </div>
+          <img 
+            src="/images/logo.png" 
+            alt="Bridge Technologies Solutions" 
+            className="h-10 w-auto"
+          />
         </Link>
 
         {!showAuth && (
