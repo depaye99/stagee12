@@ -59,32 +59,59 @@ export default function NewStagiairePage() {
 
   const loadUsers = async () => {
     try {
+      console.log("🔍 Chargement des utilisateurs...")
+
       // Récupérer les utilisateurs qui ne sont pas encore stagiaires
       const { data: existingStagiaires } = await supabase.from("stagiaires").select("user_id")
       const existingIds = existingStagiaires?.map((s) => s.user_id) || []
 
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, name, email")
-        .eq("role", "stagiaire")
-        .eq("is_active", true)
-        .not("id", "in", `(${existingIds.join(",") || "''"})`)
+      console.log("📋 Stagiaires existants:", existingIds.length)
 
-      if (error) throw error
+      let query = supabase.from("users").select("id, name, email").eq("role", "stagiaire").eq("is_active", true)
+
+      if (existingIds.length > 0) {
+        query = query.not("id", "in", `(${existingIds.join(",")})`)
+      }
+
+      const { data, error } = await query
+
+      if (error) {
+        console.error("❌ Erreur utilisateurs:", error)
+        throw error
+      }
+
+      console.log("✅ Utilisateurs disponibles:", data?.length || 0)
       setUsers(data || [])
     } catch (error) {
-      console.error("Erreur lors du chargement des utilisateurs:", error)
+      console.error("💥 Erreur lors du chargement des utilisateurs:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les utilisateurs",
+        variant: "destructive",
+      })
     }
   }
 
   const loadTuteurs = async () => {
     try {
+      console.log("🔍 Chargement des tuteurs...")
+
       const { data, error } = await supabase.from("users").select("id, name").eq("role", "tuteur").eq("is_active", true)
 
-      if (error) throw error
+      if (error) {
+        console.error("❌ Erreur tuteurs:", error)
+        throw error
+      }
+
+      console.log("✅ Tuteurs disponibles:", data?.length || 0)
       setTuteurs(data || [])
     } catch (error) {
-      console.error("Erreur lors du chargement des tuteurs:", error)
+      console.error("💥 Erreur lors du chargement des tuteurs:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les tuteurs",
+        variant: "destructive",
+      })
     }
   }
 
@@ -98,11 +125,34 @@ export default function NewStagiairePage() {
       return
     }
 
+    if (!formData.entreprise || !formData.poste) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez remplir l'entreprise et le poste",
+        variant: "destructive",
+      })
+      return
+    }
+
     setSaving(true)
     try {
-      const { error } = await supabase.from("stagiaires").insert([{ ...formData, statut: "actif" }])
+      console.log("💾 Sauvegarde stagiaire:", formData)
 
-      if (error) throw error
+      const response = await fetch("/api/admin/stagiaires", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || "Erreur lors de la création")
+      }
+
+      console.log("✅ Stagiaire créé:", result.data)
 
       toast({
         title: "Succès",
@@ -111,10 +161,10 @@ export default function NewStagiairePage() {
 
       router.push("/admin/stagiaires")
     } catch (error) {
-      console.error("Erreur lors de la création:", error)
+      console.error("❌ Erreur lors de la création:", error)
       toast({
         title: "Erreur",
-        description: "Impossible de créer le stagiaire",
+        description: error instanceof Error ? error.message : "Impossible de créer le stagiaire",
         variant: "destructive",
       })
     } finally {
@@ -163,30 +213,43 @@ export default function NewStagiairePage() {
                     <SelectValue placeholder="Sélectionner un utilisateur" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.name} ({user.email})
+                    {users.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        Aucun utilisateur disponible
                       </SelectItem>
-                    ))}
+                    ) : (
+                      users.map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.name} ({user.email})
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                {users.length === 0 && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    Tous les utilisateurs stagiaires sont déjà assignés ou aucun utilisateur stagiaire n'existe.
+                  </p>
+                )}
               </div>
               <div>
-                <Label htmlFor="entreprise">Entreprise</Label>
+                <Label htmlFor="entreprise">Entreprise *</Label>
                 <Input
                   id="entreprise"
                   value={formData.entreprise}
                   onChange={(e) => setFormData({ ...formData, entreprise: e.target.value })}
                   placeholder="Nom de l'entreprise"
+                  required
                 />
               </div>
               <div>
-                <Label htmlFor="poste">Poste</Label>
+                <Label htmlFor="poste">Poste *</Label>
                 <Input
                   id="poste"
                   value={formData.poste}
                   onChange={(e) => setFormData({ ...formData, poste: e.target.value })}
                   placeholder="Intitulé du poste"
+                  required
                 />
               </div>
               <div>
@@ -214,14 +277,20 @@ export default function NewStagiairePage() {
                   onValueChange={(value) => setFormData({ ...formData, tuteur_id: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un tuteur" />
+                    <SelectValue placeholder="Sélectionner un tuteur (optionnel)" />
                   </SelectTrigger>
                   <SelectContent>
-                    {tuteurs.map((tuteur) => (
-                      <SelectItem key={tuteur.id} value={tuteur.id}>
-                        {tuteur.name}
+                    {tuteurs.length === 0 ? (
+                      <SelectItem value="" disabled>
+                        Aucun tuteur disponible
                       </SelectItem>
-                    ))}
+                    ) : (
+                      tuteurs.map((tuteur) => (
+                        <SelectItem key={tuteur.id} value={tuteur.id}>
+                          {tuteur.name}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
               </div>

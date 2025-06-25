@@ -191,3 +191,32 @@ export function useToast(): UseToastReturn {
 
 // Export pour compatibilité
 export { useToast as default }
+
+// Export de la fonction toast pour compatibilité
+export const toast = (props: Omit<ToasterToast, "id">) => {
+  const id = genId()
+  const newToast: ToasterToast = {
+    id,
+    duration: 5000,
+    open: true,
+    ...props,
+  }
+
+  dispatch({
+    type: "ADD_TOAST",
+    toast: newToast,
+  })
+
+  // Auto dismiss after duration
+  if (newToast.duration && newToast.duration > 0) {
+    setTimeout(() => {
+      dispatch({ type: "DISMISS_TOAST", toastId: id })
+    }, newToast.duration)
+  }
+
+  return {
+    id,
+    dismiss: () => dispatch({ type: "DISMISS_TOAST", toastId: id }),
+    update: (props: Partial<ToasterToast>) => dispatch({ type: "UPDATE_TOAST", toast: { id, ...props } }),
+  }
+}

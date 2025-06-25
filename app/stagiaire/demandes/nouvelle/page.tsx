@@ -7,10 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { BackButton } from "@/components/ui/back-button"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Plus, Upload } from "lucide-react"
+import { Plus, Upload, ArrowLeft } from "lucide-react"
 
 export default function NouvelleDemandePage() {
   const [user, setUser] = useState<any>(null)
@@ -256,7 +255,10 @@ export default function NouvelleDemandePage() {
   }
 
   const handleSubmit = async () => {
+    console.log("🚀 Début de la soumission...")
+
     if (!validateForm()) {
+      console.log("❌ Validation échouée")
       return
     }
 
@@ -302,6 +304,7 @@ export default function NouvelleDemandePage() {
       })
 
       const result = await response.json()
+      console.log("📥 Réponse API:", result)
 
       if (!response.ok) {
         throw new Error(result.error || "Erreur lors de la création")
@@ -312,6 +315,7 @@ export default function NouvelleDemandePage() {
         description: `${titre} soumise avec succès`,
       })
 
+      console.log("✅ Demande créée avec succès, redirection...")
       router.push("/stagiaire/demandes")
     } catch (error) {
       console.error("❌ Erreur lors de la soumission:", error)
@@ -410,7 +414,10 @@ export default function NouvelleDemandePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:h-16 gap-4 sm:gap-0">
             <div className="flex items-center gap-4">
-              <BackButton href="/stagiaire/demandes" />
+              <Button variant="outline" onClick={() => router.push("/stagiaire/demandes")} size="sm">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Retour
+              </Button>
               <div className="text-xs sm:text-sm text-gray-600 uppercase tracking-wide">
                 FORMULAIRE DE DEMANDE{" "}
                 {demandType === "stage_academique"
