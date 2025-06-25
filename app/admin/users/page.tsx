@@ -30,6 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { BackButton } from "@/components/ui/back-button"
 
 interface User {
   id: string
@@ -60,23 +61,37 @@ export default function AdminUsersPage() {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
+      try {
+        console.log("🔍 Vérification de l'authentification admin users...")
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        if (!session) {
+          console.log("❌ Pas de session")
+          router.push("/auth/login")
+          return
+        }
+
+        console.log("✅ Session trouvée:", session.user.email)
+
+        const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+
+        if (!profile || profile.role !== "admin") {
+          console.log("❌ Profil non admin:", profile?.role)
+          router.push("/")
+          return
+        }
+
+        console.log("✅ Profil admin confirmé")
+        setUser(profile)
+        await loadUsers()
+        setLoading(false)
+      } catch (error) {
+        console.error("💥 Erreur auth check:", error)
         router.push("/auth/login")
-        return
       }
-
-      const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-      if (!profile || profile.role !== "admin") {
-        router.push("/")
-        return
-      }
-
-      setUser(profile)
-      await loadUsers()
-      setLoading(false)
     }
 
     checkAuth()
@@ -84,17 +99,23 @@ export default function AdminUsersPage() {
 
   const loadUsers = async () => {
     try {
+      console.log("📡 Chargement des utilisateurs...")
+
       const response = await fetch("/api/admin/users")
       const data = await response.json()
 
+      console.log("📊 Réponse API:", { success: data.success, count: data.data?.length })
+
       if (data.success) {
+        console.log("✅ Utilisateurs chargés:", data.data.length)
         setUsers(data.data)
         setFilteredUsers(data.data)
       } else {
+        console.error("❌ Erreur API:", data.error)
         throw new Error(data.error)
       }
     } catch (error) {
-      console.error("Erreur lors du chargement des utilisateurs:", error)
+      console.error("💥 Erreur lors du chargement des utilisateurs:", error)
       toast({
         title: "Erreur",
         description: "Impossible de charger les utilisateurs",
@@ -218,8 +239,13 @@ export default function AdminUsersPage() {
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-          <p className="text-gray-600">Gérer tous les comptes utilisateurs du système</p>
+          <div className="flex items-center gap-4 mb-4">
+            <BackButton href="/admin" />
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+              <p className="text-gray-600">Gérer tous les comptes utilisateurs du système</p>
+            </div>
+          </div>
         </div>
 
         {/* Statistiques rapides */}

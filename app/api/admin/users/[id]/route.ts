@@ -22,10 +22,17 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
+    // Vérifier que l'ID est un UUID valide
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.id)) {
+      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+    }
+
     // Récupérer l'utilisateur
     const { data: userData, error } = await supabase.from("users").select("*").eq("id", params.id).single()
 
     if (error) {
+      console.error("Erreur Supabase:", error)
       return NextResponse.json({ error: "Utilisateur non trouvé" }, { status: 404 })
     }
 
@@ -57,6 +64,12 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
+    // Vérifier que l'ID est un UUID valide
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.id)) {
+      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+    }
+
     const body = await request.json()
 
     // Mettre à jour l'utilisateur
@@ -71,6 +84,7 @@ export async function PATCH(request: NextRequest, { params }: { params: { id: st
       .single()
 
     if (error) {
+      console.error("Erreur mise à jour:", error)
       return NextResponse.json({ error: "Erreur lors de la mise à jour" }, { status: 500 })
     }
 
@@ -102,6 +116,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
+    // Vérifier que l'ID est un UUID valide
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+    if (!uuidRegex.test(params.id)) {
+      return NextResponse.json({ error: "ID utilisateur invalide" }, { status: 400 })
+    }
+
     // Supprimer d'abord les entrées liées
     await supabase.from("stagiaires").delete().eq("user_id", params.id)
     await supabase.from("demandes").delete().eq("stagiaire_id", params.id)
@@ -111,6 +131,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
     const { error: deleteError } = await supabase.from("users").delete().eq("id", params.id)
 
     if (deleteError) {
+      console.error("Erreur suppression:", deleteError)
       return NextResponse.json({ error: "Erreur lors de la suppression" }, { status: 500 })
     }
 

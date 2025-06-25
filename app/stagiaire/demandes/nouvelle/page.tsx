@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { BackButton } from "@/components/ui/back-button"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, Upload } from "lucide-react"
@@ -161,21 +162,89 @@ export default function NouvelleDemandePage() {
   }
 
   const validateForm = () => {
+    // Validation pour stage académique
+    if (demandType === "stage_academique") {
+      const requiredDocs = [
+        "cv",
+        "certificat_scolarite",
+        "lettre_motivation",
+        "lettre_recommandation",
+        "piece_identite",
+      ]
+      for (const doc of requiredDocs) {
+        if (!documents[doc as keyof typeof documents]) {
+          const docNames = {
+            cv: "CV",
+            certificat_scolarite: "Certificat de scolarité",
+            lettre_motivation: "Lettre de motivation",
+            lettre_recommandation: "Lettre de recommandation",
+            piece_identite: "Pièce d'identité",
+          }
+          toast({
+            title: "Document manquant",
+            description: `Le document "${docNames[doc as keyof typeof docNames]}" est obligatoire`,
+            variant: "destructive",
+          })
+          return false
+        }
+      }
+    }
+
+    // Validation pour stage professionnel
+    if (demandType === "stage_professionnel") {
+      const requiredDocs = [
+        "cv",
+        "certificat_scolarite",
+        "lettre_motivation",
+        "lettre_recommandation",
+        "dernier_diplome",
+        "piece_identite",
+      ]
+      for (const doc of requiredDocs) {
+        if (!documents[doc as keyof typeof documents]) {
+          const docNames = {
+            cv: "CV",
+            certificat_scolarite: "Certificat de scolarité",
+            lettre_motivation: "Lettre de motivation",
+            lettre_recommandation: "Lettre de recommandation",
+            dernier_diplome: "Dernier diplôme",
+            piece_identite: "Pièce d'identité",
+          }
+          toast({
+            title: "Document manquant",
+            description: `Le document "${docNames[doc as keyof typeof docNames]}" est obligatoire`,
+            variant: "destructive",
+          })
+          return false
+        }
+      }
+    }
+
+    // Validation pour demande de congé
     if (demandType === "demande_conge") {
       if (!congeData.date_debut || !congeData.date_fin || !congeData.description) {
         toast({
-          title: "Erreur",
+          title: "Champs manquants",
           description: "Veuillez remplir tous les champs obligatoires pour la demande de congé",
+          variant: "destructive",
+        })
+        return false
+      }
+      if (!congeData.fichier_justificatif) {
+        toast({
+          title: "Document manquant",
+          description: "Le fichier justificatif est obligatoire",
           variant: "destructive",
         })
         return false
       }
     }
 
+    // Validation pour demande de prolongation
     if (demandType === "demande_prolongation") {
       if (!prolongationData.document_prolongation || !prolongationData.periode_extension) {
         toast({
-          title: "Erreur",
+          title: "Champs manquants",
           description: "Veuillez remplir tous les champs obligatoires pour la demande de prolongation",
           variant: "destructive",
         })
@@ -286,10 +355,10 @@ export default function NouvelleDemandePage() {
 
     return (
       <div className="space-y-3">
-        <Label className="text-lg font-semibold">
+        <Label className="text-base sm:text-lg font-semibold">
           {label} {required && <span className="text-red-500">*</span>}
         </Label>
-        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
+        <div className="border-2 border-dashed border-gray-300 rounded-2xl p-4 sm:p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
           <input
             type="file"
             accept={acceptedFiles}
@@ -299,7 +368,7 @@ export default function NouvelleDemandePage() {
             disabled={isUploading}
           />
           <label htmlFor={id} className="cursor-pointer">
-            <div className="text-gray-500 mb-3 text-sm">{placeholder}</div>
+            <div className="text-gray-500 mb-3 text-xs sm:text-sm">{placeholder}</div>
             <div className="bg-black text-white rounded-lg p-2 inline-flex items-center justify-center w-8 h-8">
               {isUploading ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
@@ -308,8 +377,10 @@ export default function NouvelleDemandePage() {
               )}
             </div>
           </label>
-          {uploadedFile && <div className="mt-2 text-sm text-green-600">✓ {(uploadedFile as File)?.name}</div>}
-          {isUploading && <div className="mt-2 text-sm text-blue-600">Upload en cours...</div>}
+          {uploadedFile && (
+            <div className="mt-2 text-xs sm:text-sm text-green-600">✓ {(uploadedFile as File)?.name}</div>
+          )}
+          {isUploading && <div className="mt-2 text-xs sm:text-sm text-blue-600">Upload en cours...</div>}
         </div>
       </div>
     )
@@ -334,59 +405,59 @@ export default function NouvelleDemandePage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
+      {/* Header responsive */}
       <header className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="text-sm text-gray-600 uppercase tracking-wide">
-              FORMULAIRE DE DEMANDE{" "}
-              {demandType === "stage_academique"
-                ? "ACADEMIQUE"
-                : demandType === "stage_professionnel"
-                  ? "PROFESSIONNEL"
-                  : demandType === "demande_conge"
-                    ? "DE CONGE"
-                    : "DE PROLONGATION"}
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 sm:h-16 gap-4 sm:gap-0">
+            <div className="flex items-center gap-4">
+              <BackButton href="/stagiaire/demandes" />
+              <div className="text-xs sm:text-sm text-gray-600 uppercase tracking-wide">
+                FORMULAIRE DE DEMANDE{" "}
+                {demandType === "stage_academique"
+                  ? "ACADEMIQUE"
+                  : demandType === "stage_professionnel"
+                    ? "PROFESSIONNEL"
+                    : demandType === "demande_conge"
+                      ? "DE CONGE"
+                      : "DE PROLONGATION"}
+              </div>
             </div>
-            <div className="flex items-center space-x-4">
-              <div className="text-sm text-gray-600">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4">
+              <div className="text-xs sm:text-sm text-gray-600">
                 Connecté en tant que: <span className="font-semibold">{user.name}</span>
               </div>
-              <Button variant="outline" onClick={() => router.back()}>
-                Retour
-              </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <div className="max-w-4xl mx-auto p-8">
-        <div className="bg-white rounded-3xl p-12 shadow-sm border-2 border-gray-200">
+      <div className="max-w-4xl mx-auto p-4 sm:p-8">
+        <div className="bg-white rounded-3xl p-6 sm:p-12 shadow-sm border-2 border-gray-200">
           {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="inline-flex items-center space-x-3 mb-6">
+          <div className="text-center mb-6 sm:mb-8">
+            <div className="inline-flex items-center space-x-3 mb-4 sm:mb-6">
               <div className="relative">
-                <div className="w-12 h-12 border-3 border-blue-500 rounded-full flex items-center justify-center">
-                  <div className="w-6 h-6 bg-blue-500 rounded-full"></div>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 border-3 border-blue-500 rounded-full flex items-center justify-center">
+                  <div className="w-5 h-5 sm:w-6 sm:h-6 bg-blue-500 rounded-full"></div>
                 </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-blue-500 rounded-full"></div>
+                <div className="absolute -top-1 -right-1 w-3 h-3 sm:w-4 sm:h-4 bg-blue-500 rounded-full"></div>
               </div>
               <div className="text-left">
-                <div className="text-2xl font-bold text-black">BRIDGE</div>
-                <div className="text-sm text-blue-500 font-medium">Technologies</div>
+                <div className="text-xl sm:text-2xl font-bold text-black">BRIDGE</div>
+                <div className="text-xs sm:text-sm text-blue-500 font-medium">Technologies</div>
                 <div className="text-xs text-gray-600">Solutions</div>
               </div>
             </div>
           </div>
 
-          <h1 className="text-2xl font-bold text-center mb-12">FORMULAIRE DE DEMANDE</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-center mb-8 sm:mb-12">FORMULAIRE DE DEMANDE</h1>
 
-          {/* Type de demande */}
-          <div className="flex items-center justify-center mb-16">
-            <div className="flex items-center space-x-6">
-              <Label className="text-lg font-medium">Types de demande</Label>
+          {/* Type de demande - Responsive */}
+          <div className="flex flex-col items-center mb-12 sm:mb-16">
+            <div className="w-full max-w-md space-y-4">
+              <Label className="text-base sm:text-lg font-medium block text-center">Types de demande</Label>
               <Select value={demandType} onValueChange={setDemandType}>
-                <SelectTrigger className="w-64 h-12 rounded-full border-2 border-gray-300">
+                <SelectTrigger className="w-full h-12 rounded-full border-2 border-gray-300">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -402,11 +473,11 @@ export default function NouvelleDemandePage() {
           {/* Section Documents pour Stage Académique */}
           {demandType === "stage_academique" && (
             <>
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">DOCUMENTS</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">DOCUMENTS</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-12 sm:mb-16">
                 <FileUploadBox
                   id="cv-upload"
                   label="CV"
@@ -440,11 +511,11 @@ export default function NouvelleDemandePage() {
                 />
               </div>
 
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">INFORMATIONS PERSONNELLES</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">INFORMATIONS PERSONNELLES</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-12 sm:mb-16">
                 <FileUploadBox
                   id="identite-upload"
                   label="Pièce d'identité"
@@ -466,11 +537,11 @@ export default function NouvelleDemandePage() {
           {/* Section Documents pour Stage Professionnel */}
           {demandType === "stage_professionnel" && (
             <>
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">DOCUMENTS</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">DOCUMENTS</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-12 sm:mb-16">
                 <FileUploadBox
                   id="cv-upload-pro"
                   label="CV"
@@ -539,13 +610,13 @@ export default function NouvelleDemandePage() {
           {/* Section Demande de Congé */}
           {demandType === "demande_conge" && (
             <>
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">DEMANDE DE CONGÉ</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">DEMANDE DE CONGÉ</h2>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 sm:gap-8 mb-12 sm:mb-16">
                 <div className="space-y-3">
-                  <Label className="text-lg font-semibold">
+                  <Label className="text-base sm:text-lg font-semibold">
                     Date de début <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -558,7 +629,7 @@ export default function NouvelleDemandePage() {
                 </div>
 
                 <div className="space-y-3">
-                  <Label className="text-lg font-semibold">
+                  <Label className="text-base sm:text-lg font-semibold">
                     Date de fin <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -571,7 +642,7 @@ export default function NouvelleDemandePage() {
                 </div>
 
                 <div className="space-y-3 md:col-span-2">
-                  <Label className="text-lg font-semibold">
+                  <Label className="text-base sm:text-lg font-semibold">
                     Motif du congé <span className="text-red-500">*</span>
                   </Label>
                   <Textarea
@@ -599,11 +670,11 @@ export default function NouvelleDemandePage() {
           {/* Section Demande de Prolongation */}
           {demandType === "demande_prolongation" && (
             <>
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">DEMANDE DE PROLONGATION</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">DEMANDE DE PROLONGATION</h2>
               </div>
 
-              <div className="grid grid-cols-1 gap-8 mb-16">
+              <div className="grid grid-cols-1 gap-6 sm:gap-8 mb-12 sm:mb-16">
                 <FileUploadBox
                   id="document-prolongation-upload"
                   label="Document de prolongation"
@@ -614,7 +685,7 @@ export default function NouvelleDemandePage() {
                 />
 
                 <div className="space-y-3">
-                  <Label className="text-lg font-semibold">
+                  <Label className="text-base sm:text-lg font-semibold">
                     Période d'extension du stage <span className="text-red-500">*</span>
                   </Label>
                   <Input
@@ -630,19 +701,19 @@ export default function NouvelleDemandePage() {
             </>
           )}
 
-          {/* Section Périodes (pour stages seulement) */}
+          {/* Section Périodes (pour stages seulement) - Responsive */}
           {(demandType === "stage_academique" || demandType === "stage_professionnel") && (
             <>
-              <div className="text-center mb-8">
-                <h2 className="text-xl font-bold">PÉRIODES</h2>
+              <div className="text-center mb-6 sm:mb-8">
+                <h2 className="text-lg sm:text-xl font-bold">PÉRIODES</h2>
               </div>
 
-              <div className="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-8 mb-16">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Date de début</Label>
-                  <div className="flex space-x-4">
+              <div className="flex flex-col space-y-6 sm:space-y-8 mb-12 sm:mb-16">
+                <div className="space-y-4">
+                  <Label className="text-sm font-medium block text-center">Date de début</Label>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-4 max-w-md mx-auto">
                     <Select value={periode.jours} onValueChange={(value) => setPeriode({ ...periode, jours: value })}>
-                      <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                      <SelectTrigger className="h-12 rounded-full border-2">
                         <SelectValue placeholder="Jour" />
                       </SelectTrigger>
                       <SelectContent>
@@ -655,7 +726,7 @@ export default function NouvelleDemandePage() {
                     </Select>
 
                     <Select value={periode.mois} onValueChange={(value) => setPeriode({ ...periode, mois: value })}>
-                      <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                      <SelectTrigger className="h-12 rounded-full border-2">
                         <SelectValue placeholder="Mois" />
                       </SelectTrigger>
                       <SelectContent>
@@ -675,7 +746,7 @@ export default function NouvelleDemandePage() {
                     </Select>
 
                     <Select value={periode.annee} onValueChange={(value) => setPeriode({ ...periode, annee: value })}>
-                      <SelectTrigger className="w-24 h-12 rounded-full border-2">
+                      <SelectTrigger className="h-12 rounded-full border-2">
                         <SelectValue placeholder="Année" />
                       </SelectTrigger>
                       <SelectContent>
@@ -687,28 +758,30 @@ export default function NouvelleDemandePage() {
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Nombre de mois</Label>
-                  <Input
-                    value={periode.nombre_mois}
-                    onChange={(e) => setPeriode({ ...periode, nombre_mois: e.target.value })}
-                    className="w-32 h-12 rounded-full text-center border-2"
-                    placeholder="6"
-                    type="number"
-                    min="1"
-                    max="12"
-                  />
+                <div className="space-y-4">
+                  <Label className="text-sm font-medium block text-center">Nombre de mois</Label>
+                  <div className="max-w-32 mx-auto">
+                    <Input
+                      value={periode.nombre_mois}
+                      onChange={(e) => setPeriode({ ...periode, nombre_mois: e.target.value })}
+                      className="h-12 rounded-full text-center border-2"
+                      placeholder="6"
+                      type="number"
+                      min="1"
+                      max="12"
+                    />
+                  </div>
                 </div>
               </div>
             </>
           )}
 
-          {/* Submit Button */}
+          {/* Submit Button - Responsive */}
           <div className="text-center">
             <Button
               onClick={handleSubmit}
               disabled={loading || uploadingFiles.size > 0}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-4 rounded-full text-lg font-medium disabled:opacity-50"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-8 sm:px-12 py-3 sm:py-4 rounded-full text-base sm:text-lg font-medium disabled:opacity-50 w-full sm:w-auto"
             >
               {loading ? (
                 <>

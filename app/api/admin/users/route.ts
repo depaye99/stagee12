@@ -1,202 +1,178 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { settingsService } from "@/lib/services/settings-service"
+
+export async function GET() {
+  try {
+    console.log("🔍 API Admin Users - Début de la requête")
+
+    const supabase = await createClient()
+
+    // Vérifier l'authentification
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session?.user) {
+      console.log("❌ Pas de session utilisateur:", sessionError?.message)
+      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
+    }
+
+    console.log("✅ Session trouvée pour:", session.user.email)
+
+    // Vérifier que l'utilisateur est admin
+    const { data: adminProfile, error: adminError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
+
+    if (adminError) {
+      console.error("❌ Erreur récupération profil admin:", adminError)
+      return NextResponse.json({ success: false, error: "Erreur de vérification des permissions" }, { status: 500 })
+    }
+
+    if (!adminProfile || adminProfile.role !== "admin") {
+      console.log("❌ Utilisateur non autorisé:", adminProfile?.role)
+      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
+    }
+
+    console.log("✅ Utilisateur admin confirmé")
+
+    // Récupérer tous les utilisateurs
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select(`
+        id,
+        email,
+        name,
+        role,
+        phone,
+        department,
+        position,
+        is_active,
+        created_at,
+        last_login
+      `)
+      .order("created_at", { ascending: false })
+
+    if (usersError) {
+      console.error("❌ Erreur lors de la récupération des utilisateurs:", usersError)
+      return NextResponse.json(
+        { success: false, error: `Erreur lors de la récupération des utilisateurs: ${usersError.message}` },
+        { status: 500 },
+      )
+    }
+
+    console.log("✅ Utilisateurs récupérés:", users?.length || 0)
+
+    return NextResponse.json({
+      success: true,
+      data: users || [],
+    })
+  } catch (error: any) {
+    console.error("💥 Erreur API Admin Users:", error)
+    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("🔍 API Admin Users POST - Début de la requête")
+
     const supabase = await createClient()
 
-    // Vérifier l'authentification et les permissions
+    // Vérifier l'authentification
     const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
 
-    if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    if (sessionError || !session?.user) {
+      console.log("❌ Pas de session utilisateur:", sessionError?.message)
+      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
     }
 
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    // Vérifier que l'utilisateur est admin
+    const { data: adminProfile, error: adminError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
 
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    if (adminError || !adminProfile || adminProfile.role !== "admin") {
+      console.log("❌ Utilisateur non autorisé:", adminProfile?.role)
+      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
     }
 
     const body = await request.json()
-    const { nom_complet, email, role, telephone, departement, poste, mot_de_passe } = body
+    const { email, password, name, role, phone, department, position } = body
 
-    console.log("🔄 Création d'utilisateur avec les données:", {
-      nom_complet,
-      email,
-      role,
-      telephone,
-      departement,
-      poste,
-    })
+    console.log("📝 Données reçues:", { email, name, role, department })
 
-    // **UTILISATION DES PARAMÈTRES SYSTÈME** - Assignation automatique
-    const autoAssignTuteur = await settingsService.getSetting("auto_assign_tuteur")
-    const maxStagiairesPerTuteur = await settingsService.getSetting("max_stagiaires_per_tuteur")
-
-    console.log("⚙️ Paramètres système:", { autoAssignTuteur, maxStagiairesPerTuteur })
-
-    // Créer l'utilisateur dans Supabase Auth
-    const { data: authUser, error: createError } = await supabase.auth.admin.createUser({
-      email,
-      password: mot_de_passe,
-      email_confirm: true,
-      user_metadata: {
-        nom_complet,
-        role,
-      },
-    })
-
-    if (createError) {
-      console.error("❌ Erreur création auth:", createError)
-      throw createError
+    // Validation des données
+    if (!email || !password || !name || !role) {
+      return NextResponse.json(
+        { success: false, error: "Email, mot de passe, nom et rôle sont obligatoires" },
+        { status: 400 },
+      )
     }
 
-    console.log("✅ Utilisateur auth créé:", authUser.user?.id)
+    // Créer l'utilisateur dans Supabase Auth
+    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+    })
 
-    // Créer l'entrée dans la table users
-    const { data: newUser, error: userError } = await supabase
+    if (authError) {
+      console.error("❌ Erreur création auth:", authError)
+      return NextResponse.json(
+        { success: false, error: `Erreur lors de la création du compte: ${authError.message}` },
+        { status: 400 },
+      )
+    }
+
+    if (!authUser.user) {
+      return NextResponse.json({ success: false, error: "Erreur lors de la création du compte" }, { status: 400 })
+    }
+
+    // Créer le profil utilisateur
+    const { data: userProfile, error: profileError } = await supabase
       .from("users")
       .insert({
-        id: authUser.user!.id,
-        nom_complet,
+        id: authUser.user.id,
         email,
+        name,
         role,
-        telephone,
-        departement,
-        poste,
-        statut: "actif",
+        phone: phone || null,
+        department: department || null,
+        position: position || null,
+        is_active: true,
       })
       .select()
       .single()
 
-    if (userError) {
-      console.error("❌ Erreur création user:", userError)
-      // Supprimer l'utilisateur auth si erreur
-      await supabase.auth.admin.deleteUser(authUser.user!.id)
-      throw userError
+    if (profileError) {
+      console.error("❌ Erreur création profil:", profileError)
+
+      // Supprimer l'utilisateur auth en cas d'erreur
+      await supabase.auth.admin.deleteUser(authUser.user.id)
+
+      return NextResponse.json(
+        { success: false, error: `Erreur lors de la création du profil: ${profileError.message}` },
+        { status: 400 },
+      )
     }
 
-    console.log("✅ Utilisateur créé dans users:", newUser.id)
-
-    // **IMPACT RÉEL DES PARAMÈTRES** - Si c'est un stagiaire ET assignation auto activée
-    if (role === "stagiaire" && autoAssignTuteur) {
-      console.log("🎯 Assignation automatique de tuteur activée")
-
-      // Trouver le tuteur avec le moins de stagiaires (respectant la limite)
-      const { data: tuteurs, error: tuteursError } = await supabase
-        .from("users")
-        .select(`
-          id, nom_complet,
-          stagiaires:stagiaires(count)
-        `)
-        .eq("role", "tuteur")
-        .eq("statut", "actif")
-
-      if (tuteursError) {
-        console.error("❌ Erreur récupération tuteurs:", tuteursError)
-      } else {
-        // Filtrer les tuteurs qui n'ont pas atteint la limite
-        const tuteursDisponibles = tuteurs.filter((tuteur: any) => {
-          const nombreStagiaires = tuteur.stagiaires?.[0]?.count || 0
-          return nombreStagiaires < maxStagiairesPerTuteur
-        })
-
-        if (tuteursDisponibles.length > 0) {
-          // Prendre le tuteur avec le moins de stagiaires
-          const tuteurAssigne = tuteursDisponibles.reduce((min: any, current: any) => {
-            const minCount = min.stagiaires?.[0]?.count || 0
-            const currentCount = current.stagiaires?.[0]?.count || 0
-            return currentCount < minCount ? current : min
-          })
-
-          console.log("👨‍🏫 Tuteur assigné:", tuteurAssigne.nom_complet)
-
-          // Créer l'entrée stagiaire avec tuteur assigné
-          const stageDurationMonths = await settingsService.getSetting("stage_duration_months")
-          const dateDebut = new Date()
-          const dateFin = new Date()
-          dateFin.setMonth(dateFin.getMonth() + stageDurationMonths)
-
-          const { error: stagiaireError } = await supabase.from("stagiaires").insert({
-            user_id: authUser.user!.id,
-            tuteur_id: tuteurAssigne.id,
-            entreprise: "Bridge Technologies Solutions", // Fixe comme demandé
-            poste: "Stagiaire", // Fixe comme demandé
-            date_debut: dateDebut.toISOString(),
-            date_fin: dateFin.toISOString(),
-            statut: "actif",
-          })
-
-          if (stagiaireError) {
-            console.error("❌ Erreur création stagiaire:", stagiaireError)
-          } else {
-            console.log("✅ Stagiaire créé avec tuteur assigné automatiquement")
-          }
-        } else {
-          console.log("⚠️ Aucun tuteur disponible (limite atteinte)")
-        }
-      }
-    }
-
-    // Invalider le cache des paramètres pour les prochaines requêtes
-    settingsService.invalidateCache()
+    console.log("✅ Utilisateur créé avec succès:", userProfile.id)
 
     return NextResponse.json({
       success: true,
-      message: "Utilisateur créé avec succès",
-      data: newUser,
+      data: userProfile,
     })
   } catch (error: any) {
-    console.error("❌ Erreur complète:", error)
-    return NextResponse.json(
-      {
-        error: "Erreur lors de la création de l'utilisateur",
-        details: error.message,
-      },
-      { status: 500 },
-    )
-  }
-}
-
-export async function GET() {
-  try {
-    const supabase = await createClient()
-
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
-    }
-
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
-
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
-    }
-
-    const { data: users, error } = await supabase
-      .from("users")
-      .select(`
-        *,
-        stagiaires(id, tuteur_id, entreprise, poste, statut)
-      `)
-      .order("created_at", { ascending: false })
-
-    if (error) {
-      throw error
-    }
-
-    return NextResponse.json({ success: true, data: users })
-  } catch (error) {
-    console.error("Erreur lors de la récupération des utilisateurs:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    console.error("💥 Erreur API Admin Users POST:", error)
+    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
   }
 }

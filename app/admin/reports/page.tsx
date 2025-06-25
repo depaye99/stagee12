@@ -22,6 +22,7 @@ import {
 import { Download, FileText, Users, Calendar, TrendingUp } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
+import { BackButton } from "@/components/ui/back-button"
 
 interface ReportingData {
   stagiaires: {
@@ -175,10 +176,13 @@ export default function AdminReportsPage() {
 
       <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Rapports et Analyses</h1>
-              <p className="text-gray-600">Vue d'ensemble des activités et statistiques</p>
+          <div className="flex justify-between items-start">
+            <div className="flex items-center gap-4">
+              <BackButton href="/admin" />
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Rapports et Analyses</h1>
+                <p className="text-gray-600">Vue d'ensemble des activités et statistiques</p>
+              </div>
             </div>
             <div className="flex items-center space-x-4">
               <Select value={period} onValueChange={(value) => setPeriod(value)}>

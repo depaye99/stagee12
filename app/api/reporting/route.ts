@@ -3,42 +3,82 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient()
+    console.log("🔍 API Reporting - Début de la requête")
+
+    const supabase = await createClient()
+
     const {
       data: { session },
+      error: sessionError,
     } = await supabase.auth.getSession()
 
-    if (!session) {
+    if (sessionError || !session) {
+      console.log("❌ Pas de session:", sessionError?.message)
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
+    console.log("✅ Session trouvée pour:", session.user.email)
+
     const { searchParams } = new URL(request.url)
     const period = Number.parseInt(searchParams.get("period") || "12")
+
+    console.log("📊 Période demandée:", period, "mois")
 
     // Calculer la date de début selon la période
     const startDate = new Date()
     startDate.setMonth(startDate.getMonth() - period)
 
+    console.log("📅 Date de début:", startDate.toISOString())
+
     // Données des stagiaires
-    const { data: stagiaires } = await supabase
+    const { data: stagiaires, error: stagiairesError } = await supabase
       .from("stagiaires")
       .select(`
-        *,
-        users(name, email, department)
-      `)
+    *,
+    user:users!user_id(name, email, department)
+  `)
       .gte("created_at", startDate.toISOString())
 
+    if (stagiairesError) {
+      console.error("❌ Erreur stagiaires:", stagiairesError)
+    }
+
     // Données des demandes
-    const { data: demandes } = await supabase.from("demandes").select("*").gte("created_at", startDate.toISOString())
+    const { data: demandes, error: demandesError } = await supabase
+      .from("demandes")
+      .select("*")
+      .gte("created_at", startDate.toISOString())
+
+    if (demandesError) {
+      console.error("❌ Erreur demandes:", demandesError)
+    }
 
     // Données des évaluations
-    const { data: evaluations } = await supabase
+    const { data: evaluations, error: evaluationsError } = await supabase
       .from("evaluations")
       .select("*")
       .gte("created_at", startDate.toISOString())
 
+    if (evaluationsError) {
+      console.error("❌ Erreur évaluations:", evaluationsError)
+    }
+
     // Données des documents
-    const { data: documents } = await supabase.from("documents").select("*").gte("created_at", startDate.toISOString())
+    const { data: documents, error: documentsError } = await supabase
+      .from("documents")
+      .select("*")
+      .gte("created_at", startDate.toISOString())
+
+    if (documentsError) {
+      console.error("❌ Erreur documents:", documentsError)
+    }
+
+    console.log("📊 Données récupérées:", {
+      stagiaires: stagiaires?.length || 0,
+      demandes: demandes?.length || 0,
+      evaluations: evaluations?.length || 0,
+      documents: documents?.length || 0,
+    })
 
     // Traitement des données pour les graphiques
     const reportingData = {
@@ -68,10 +108,12 @@ export async function GET(request: NextRequest) {
       },
     }
 
+    console.log("✅ Rapport généré avec succès")
+
     return NextResponse.json(reportingData)
-  } catch (error) {
-    console.error("Erreur lors de la génération du rapport:", error)
-    return NextResponse.json({ error: "Erreur lors de la génération du rapport" }, { status: 500 })
+  } catch (error: any) {
+    console.error("💥 Erreur lors de la génération du rapport:", error)
+    return NextResponse.json({ error: `Erreur lors de la génération du rapport: ${error.message}` }, { status: 500 })
   }
 }
 
@@ -96,7 +138,7 @@ function generateMonthlyData(data: any[], period: number) {
 
 function generateDepartmentData(stagiaires: any[]) {
   const departments = stagiaires.reduce((acc, stagiaire) => {
-    const dept = stagiaire.users?.department || "Non défini"
+    const dept = stagiaire.user?.department || "Non défini"
     acc[dept] = (acc[dept] || 0) + 1
     return acc
   }, {})
@@ -135,7 +177,7 @@ function calculateAverageGrade(evaluations: any[]) {
   if (evaluations.length === 0) return 0
 
   const total = evaluations.reduce((sum, evaluation) => sum + (evaluation.note_globale || 0), 0)
-  return total / evaluations.length
+  return Number((total / evaluations.length).toFixed(2))
 }
 
 function generateCriteriaData(evaluations: any[]) {
