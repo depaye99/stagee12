@@ -2,8 +2,13 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Header } from "@/components/layout/header"
+import { FileText, Users, TrendingUp, Settings, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react"
+import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 import { authService } from "@/lib/services/auth-service"
 
 interface User {
@@ -56,39 +61,7 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen bg-gray-200">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-300">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-3">
-            {/* Logo */}
-            <div className="flex items-center">
-              <img src="/images/logo.png" alt="Bridge Technologies Solutions" className="h-10 w-auto" />
-            </div>
-
-            {/* Navigation */}
-            <nav className="hidden md:flex items-center space-x-8">
-              <Link href="/" className="text-gray-800 hover:text-blue-600 font-medium text-sm">
-                Accueil
-              </Link>
-              <Link href="/contacts" className="text-gray-800 hover:text-blue-600 font-medium text-sm">
-                Contacts
-              </Link>
-              <Link href="/entreprise" className="text-gray-800 hover:text-blue-600 font-medium text-sm">
-                L'entreprise
-              </Link>
-              <Link href="/services" className="text-gray-800 hover:text-blue-600 font-medium text-sm">
-                Services
-              </Link>
-            </nav>
-
-            {/* Right side */}
-            <div className="flex items-center space-x-3">
-              <div className="bg-black text-white px-2 py-1 rounded text-xs font-medium">A-Z</div>
-              <div className="w-7 h-7 bg-gray-400 rounded-full"></div>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header/>
 
       {/* Hero Section */}
       <section className="bg-gray-200 py-16 relative min-h-[500px] text-[rgba(135,135,134,1)]">

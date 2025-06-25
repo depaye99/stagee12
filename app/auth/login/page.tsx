@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Sun, Languages } from "lucide-react"
+import { Header } from "@/components/layout/header"
 import { authService } from "@/lib/services/auth-service"
 
 export default function LoginPage() {
@@ -58,41 +58,7 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          {/* Logo */}
-          <div className="flex items-center">
-            <img src="/images/logo.png" alt="Bridge Technologies Solutions" className="h-12 w-auto" />
-          </div>
-
-          {/* Navigation */}
-          <nav className="hidden md:flex items-center space-x-8">
-            <Link href="/" className="text-gray-700 hover:text-gray-900 font-medium">
-              Accueil
-            </Link>
-            <Link href="/contacts" className="text-gray-700 hover:text-gray-900 font-medium">
-              Contacts
-            </Link>
-            <Link href="/entreprise" className="text-gray-700 hover:text-gray-900 font-medium">
-              L'entreprise
-            </Link>
-            <Link href="/services" className="text-gray-700 hover:text-gray-900 font-medium">
-              Services
-            </Link>
-          </nav>
-
-          {/* Right side */}
-          <div className="flex items-center space-x-4">
-            <div className="bg-black text-white px-3 py-1 rounded text-sm font-medium flex items-center">
-              <Languages className="w-4 h-4 mr-1" />
-              A-Z
-            </div>
-            <Button variant="ghost" size="sm">
-              <Sun className="w-4 h-4" />
-            </Button>
-          </div>
-        </div>
-      </header>
+      <Header showAuth={true} />
 
       {/* Main Content */}
       <div className="flex-1 flex">
