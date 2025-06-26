@@ -65,7 +65,7 @@ export default function HomePage() {
       <Header/>
 
       {/* Hero Section */}
-      <section className="bg-gray-200 py-16 relative min-h-[500px] text-[rgba(135,135,134,1)]">
+      <section className="bg-gray-200 py-16 relative min-h-[500px] text-black">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center h-full">
             {/* Left Content */}
