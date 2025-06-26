@@ -2,93 +2,102 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/layout/header"
-import { ArrowLeft, User } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
+import { User, ArrowRight, Users } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Stagiaire {
   id: string
-  users: {
+  entreprise?: string
+  poste?: string
+  specialite?: string
+  statut: string
+  user: {
+    id: string
     name: string
     email: string
   }
-  specialite: string
-  niveau: string
 }
 
 export default function NewEvaluationPage() {
   const [user, setUser] = useState<any>(null)
   const [stagiaires, setStagiaires] = useState<Stagiaire[]>([])
-  const [selectedStagiaire, setSelectedStagiaire] = useState<string>("")
   const [loading, setLoading] = useState(true)
-
   const router = useRouter()
   const supabase = createClient()
   const { toast } = useToast()
 
   useEffect(() => {
     const checkAuth = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) {
-        router.push("/auth/login")
-        return
-      }
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-      const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
-      if (!profile || profile.role !== "tuteur") {
-        router.push("/auth/login")
-        return
-      }
+        if (!session) {
+          router.push("/auth/login")
+          return
+        }
 
-      setUser(profile)
-      await loadStagiaires(session.user.id)
-      setLoading(false)
+        const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+
+        if (!profile || profile.role !== "tuteur") {
+          router.push("/auth/login")
+          return
+        }
+
+        setUser(profile)
+        await loadStagiaires()
+      } catch (error) {
+        console.error("💥 Erreur checkAuth:", error)
+        router.push("/auth/login")
+      } finally {
+        setLoading(false)
+      }
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const loadStagiaires = async (tuteurId: string) => {
+  const loadStagiaires = async () => {
     try {
-      const { data, error } = await supabase
-        .from("stagiaires")
-        .select(`
-          *,
-          users!inner(name, email)
-        `)
-        .eq("tuteur_id", tuteurId)
-        .eq("status", "actif")
+      console.log("🔍 Chargement des stagiaires du tuteur...")
 
-      if (error) throw error
-      setStagiaires(data || [])
+      const response = await fetch("/api/tuteur/stagiaires")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log("✅ Stagiaires chargés:", data.data?.length || 0)
+        setStagiaires(data.data || [])
+      } else {
+        console.error("❌ Erreur API stagiaires:", data.error)
+        toast({
+          title: "Erreur",
+          description: "Impossible de charger vos stagiaires",
+          variant: "destructive",
+        })
+      }
     } catch (error) {
-      console.error("Erreur lors du chargement des stagiaires:", error)
+      console.error("💥 Erreur lors du chargement des stagiaires:", error)
       toast({
         title: "Erreur",
-        description: "Impossible de charger la liste des stagiaires",
+        description: "Erreur lors du chargement des stagiaires",
         variant: "destructive",
       })
     }
   }
 
-  const handleContinue = () => {
-    if (!selectedStagiaire) {
-      toast({
-        title: "Erreur",
-        description: "Veuillez sélectionner un stagiaire",
-        variant: "destructive",
-      })
-      return
-    }
-
-    router.push(`/tuteur/stagiaires/${selectedStagiaire}/evaluation`)
+  const handleSelectStagiaire = (stagiaireId: string) => {
+    router.push(`/tuteur/stagiaires/${stagiaireId}/evaluation`)
   }
 
   if (loading) {
@@ -100,91 +109,66 @@ export default function NewEvaluationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <Header user={user} />
 
-      <main className="max-w-2xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 max-w-4xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <Button variant="ghost" onClick={() => router.back()} className="mb-4">
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour
-          </Button>
-
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Nouvelle évaluation</h1>
-            <p className="text-gray-600 dark:text-gray-400">Sélectionnez le stagiaire à évaluer</p>
-          </div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Nouvelle évaluation</h1>
+          <p className="text-gray-600 dark:text-gray-400">Sélectionnez un stagiaire à évaluer</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Sélection du stagiaire
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {stagiaires.length === 0 ? (
-              <div className="text-center py-8">
-                <User className="mx-auto h-12 w-12 text-gray-400" />
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">Aucun stagiaire assigné</h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  Vous n'avez aucun stagiaire assigné actuellement.
-                </p>
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label htmlFor="stagiaire">Stagiaire à évaluer</Label>
-                  <Select value={selectedStagiaire} onValueChange={setSelectedStagiaire}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionnez un stagiaire" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {stagiaires.map((stagiaire) => (
-                        <SelectItem key={stagiaire.id} value={stagiaire.id}>
-                          <div className="flex flex-col">
-                            <span className="font-medium">{stagiaire.users.name}</span>
-                            <span className="text-sm text-gray-500">
-                              {stagiaire.specialite} - {stagiaire.niveau}
-                            </span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {selectedStagiaire && (
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                    {(() => {
-                      const stagiaire = stagiaires.find((s) => s.id === selectedStagiaire)
-                      return stagiaire ? (
-                        <div>
-                          <h3 className="font-medium text-blue-900 dark:text-blue-100">{stagiaire.users.name}</h3>
-                          <p className="text-sm text-blue-700 dark:text-blue-300">{stagiaire.users.email}</p>
-                          <p className="text-sm text-blue-600 dark:text-blue-400">
-                            {stagiaire.specialite} - {stagiaire.niveau}
-                          </p>
-                        </div>
-                      ) : null
-                    })()}
+        {stagiaires.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-12">
+              <Users className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+              <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">Aucun stagiaire assigné</h3>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Vous n'avez actuellement aucun stagiaire assigné pour créer une évaluation.
+              </p>
+              <Button onClick={() => router.push("/tuteur")} variant="outline">
+                Retour au tableau de bord
+              </Button>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {stagiaires.map((stagiaire) => (
+              <Card key={stagiaire.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <User className="h-5 w-5" />
+                    {stagiaire.user?.name || "Nom non défini"}
+                  </CardTitle>
+                  <CardDescription>{stagiaire.user?.email}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 mb-4">
+                    <div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Entreprise: </span>
+                      <span className="font-medium">{stagiaire.entreprise || "Non définie"}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Poste: </span>
+                      <span className="font-medium">{stagiaire.poste || "Non défini"}</span>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Spécialité: </span>
+                      <span className="font-medium">{stagiaire.specialite || "Non définie"}</span>
+                    </div>
                   </div>
-                )}
-
-                <div className="flex justify-end gap-4">
-                  <Button variant="outline" onClick={() => router.back()}>
-                    Annuler
+                  <Button className="w-full" onClick={() => handleSelectStagiaire(stagiaire.id)}>
+                    Créer une évaluation
+                    <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                  <Button onClick={handleContinue} disabled={!selectedStagiaire}>
-                    Continuer
-                  </Button>
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
       </main>
+
+      <Footer />
     </div>
   )
 }

@@ -145,19 +145,19 @@ export function Header({ user, showAuth = false }: HeaderProps) {
               Accueil
             </Link>
             <Link
-              href="/contacts"
+              href="https://bridgetech-solutions.com/?page=contact"
               className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
             >
               Contacts
             </Link>
             <Link
-              href="/entreprise"
+              href="https://bridgetech-solutions.com/?page=entreprise"
               className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
             >
               Entreprise
             </Link>
             <Link
-              href="/services"
+              href="https://bridgetech-solutions.com/?page=infrastructure"
               className="text-gray-700 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 font-medium transition-colors"
             >
               Services

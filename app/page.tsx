@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Header } from "@/components/layout/header"
+import { Header} from "@/components/layout/header"
+import { Footer} from "@/components/layout/footer"
 import { FileText, Users, TrendingUp, Settings, Calendar, CheckCircle2, Clock, AlertCircle } from "lucide-react"
 import Link from "next/link"
 import { createClient } from "@/lib/supabase/client"
@@ -60,7 +61,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-200">
+    <div className="min-h-screen bg-gray-200 dark: bg-blue-700">
       <Header/>
 
       {/* Hero Section */}
@@ -70,12 +71,12 @@ export default function HomePage() {
             {/* Left Content */}
             <div className="text-left space-y-6">
               <h1 className="text-3xl lg:text-4xl font-bold leading-tight text-black">
-                Bienvenue sur
+                Bienvenue chez
                 <br />
                 Bridge Technologies Solutions
               </h1>
               <p className="text-base lg:text-lg leading-relaxed max-w-md text-black">
-                Explorez et soumettez vos demandes de stage en toute simplicité grâce à notre plateforme intuitive.
+                Soumettez et suivez vos demandes de stage en toute simplicité grâce à notre plateforme intuitive.
               </p>
             </div>
 
@@ -83,29 +84,24 @@ export default function HomePage() {
             <div className="relative flex justify-center lg:justify-end">
               <div className="relative">
                 <img
-                  src="/images/hero-laptop.png"
+                  src="https://cdn.pixabay.com/photo/2014/12/27/15/40/office-581131_1280.jpg"
                   alt="Professional workspace"
                   className="w-full max-w-sm lg:max-w-md rounded-lg shadow-lg"
                 />
-                {/* Blue Circle */}
-                <div className="absolute -top-4 -right-4 w-20 h-20 bg-blue-600 rounded-full z-10"></div>
               </div>
             </div>
           </div>
         </div>
-
-        {/* Frame 2 Label */}
-        <div className="absolute top-4 right-4 text-white/60 text-xs">Frame 2</div>
       </section>
 
       {/* CTA Section */}
       <section className="bg-gray-200 py-12">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-xl lg:text-2xl font-bold mb-3 text-black">
-            Commencer dès maintenant et suivez en temps réel
+           Déposez votre candidature en un clic 
           </h2>
           <p className="mb-8 text-sm lg:text-base text-black">
-            Déposez votre candidature en un clic et suivez son avancé en temps réel
+            Commencer maintenant et suivez en temps reel votre demande 
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
@@ -129,27 +125,8 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="py-6 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap justify-between items-center text-xs text-gray-700">
-            <div className="flex items-center space-x-1">
-              <span className="font-medium">🏢</span>
-              <span>Bridge Technologies Solutions</span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span>Tous droits réservés</span>
-              <Link href="#" className="hover:text-gray-900">
-                Conditions d'utilisation
-              </Link>
-              <Link href="#" className="hover:text-gray-900">
-                Politique de confidentialité
-              </Link>
-              <Link href="#" className="hover:text-gray-900">
-                Contact
-              </Link>
-            </div>
-          </div>
-        </div>
-      </footer>
+       <footer/>
+      </Footer>
     </div>
   )
 }

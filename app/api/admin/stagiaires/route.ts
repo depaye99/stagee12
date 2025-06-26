@@ -1,67 +1,62 @@
-import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
+import { NextResponse } from "next/server"
 
 export async function GET() {
   try {
-    console.log("🔍 API Admin Stagiaires - Début de la requête")
-
     const supabase = await createClient()
 
     // Vérifier l'authentification
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (sessionError || !session?.user) {
-      console.log("❌ Pas de session utilisateur:", sessionError?.message)
-      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
-
-    console.log("✅ Session trouvée pour:", session.user.email)
 
     // Vérifier les permissions admin
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .single()
-
-    if (profileError) {
-      console.error("❌ Erreur récupération profil:", profileError)
-      return NextResponse.json({ success: false, error: "Erreur de vérification des permissions" }, { status: 500 })
-    }
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
     if (!profile || profile.role !== "admin") {
-      console.log("❌ Utilisateur non autorisé:", profile?.role)
-      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    console.log("✅ Utilisateur admin confirmé")
+    console.log("🔍 Récupération des stagiaires par admin...")
 
-    // Récupérer tous les stagiaires avec leurs relations
+    // Récupérer tous les stagiaires avec leurs informations utilisateur et tuteur
     const { data: stagiaires, error } = await supabase
       .from("stagiaires")
       .select(`
         *,
-        user:users!user_id(id, name, email, phone),
-        tuteur:users!tuteur_id(id, name, email)
+        user:users!stagiaires_user_id_fkey (
+          id,
+          name,
+          email,
+          phone
+        ),
+        tuteur:users!stagiaires_tuteur_id_fkey (
+          id,
+          name,
+          email
+        )
       `)
       .order("created_at", { ascending: false })
 
     if (error) {
       console.error("❌ Erreur récupération stagiaires:", error)
-      return NextResponse.json(
-        { success: false, error: `Erreur lors de la récupération des stagiaires: ${error.message}` },
-        { status: 500 },
-      )
+      return NextResponse.json({ error: "Erreur lors de la récupération des stagiaires" }, { status: 500 })
     }
 
     console.log("✅ Stagiaires récupérés:", stagiaires?.length || 0)
 
-    return NextResponse.json({ success: true, data: stagiaires || [] })
-  } catch (error: any) {
-    console.error("💥 Erreur API stagiaires:", error)
-    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      data: stagiaires || [],
+      count: stagiaires?.length || 0,
+    })
+  } catch (error) {
+    console.error("💥 Erreur API admin stagiaires:", error)
+    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 })
   }
 }
