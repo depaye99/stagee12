@@ -6,16 +6,44 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Header } from "@/components/layout/header"
-import { FileText, ClipboardList, User, Plus } from "lucide-react"
+import { Footer } from "@/components/layout/footer"
+import { FileText, ClipboardList, User, Plus, TrendingUp, Clock, CheckCircle, AlertCircle } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
+import { useToast } from "@/hooks/use-toast"
+
+interface StagiaireStats {
+  demandes_total: number
+  demandes_en_attente: number
+  demandes_approuvees: number
+  demandes_rejetees: number
+  documents_total: number
+  evaluations_total: number
+  note_moyenne: number
+}
+
+interface StagiaireInfo {
+  id: string
+  entreprise?: string
+  poste?: string
+  specialite?: string
+  niveau?: string
+  date_debut?: string
+  date_fin?: string
+  statut: string
+  tuteur?: {
+    name: string
+    email: string
+  }
+}
 
 export default function StagiaireDashboard() {
   const [user, setUser] = useState<any>(null)
-  const [stagiaireInfo, setStagiaireInfo] = useState<any>(null)
-  const [stats, setStats] = useState<any>(null)
+  const [stagiaireInfo, setStagiaireInfo] = useState<StagiaireInfo | null>(null)
+  const [stats, setStats] = useState<StagiaireStats | null>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
+  const { toast } = useToast()
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -30,50 +58,101 @@ export default function StagiaireDashboard() {
 
       const { data: profile } = await supabase.from("users").select("*").eq("id", session.user.id).single()
 
-      if (!profile) {
+      if (!profile || profile.role !== "stagiaire") {
         router.push("/auth/login")
         return
       }
 
       setUser(profile)
-
-      // Récupérer les informations du stagiaire
-      const { data: stagiaire } = await supabase
-        .from("stagiaires")
-        .select("*, tuteur:users!tuteur_id(*)")
-        .eq("user_id", profile.id)
-        .single()
-
-      setStagiaireInfo(stagiaire)
-      await loadStats(profile.id)
+      await Promise.all([loadStagiaireInfo(profile.id), loadStats()])
       setLoading(false)
     }
 
     checkAuth()
   }, [router, supabase])
 
-  const loadStats = async (userId: string) => {
+  const loadStagiaireInfo = async (userId: string) => {
     try {
-      const [demandesCount, documentsCount, evaluationsCount] = await Promise.all([
-        supabase
-          .from("demandes")
-          .select("id", { count: "exact", head: true })
-          .eq("stagiaire_id", stagiaireInfo?.id || ""),
-        supabase.from("documents").select("id", { count: "exact", head: true }).eq("user_id", userId),
-        supabase
-          .from("evaluations")
-          .select("id", { count: "exact", head: true })
-          .eq("stagiaire_id", stagiaireInfo?.id || ""),
-      ])
+      console.log("🔍 Chargement des informations du stagiaire...")
 
-      setStats({
-        demandes_total: demandesCount.count || 0,
-        documents_total: documentsCount.count || 0,
-        evaluations_total: evaluationsCount.count || 0,
-      })
+      const { data: stagiaire, error } = await supabase
+        .from("stagiaires")
+        .select(`
+          *,
+          tuteur:users!stagiaires_tuteur_id_fkey(name, email)
+        `)
+        .eq("user_id", userId)
+        .single()
+
+      if (error) {
+        console.error("❌ Erreur lors du chargement du stagiaire:", error)
+        // Ne pas bloquer si pas de profil stagiaire
+        return
+      }
+
+      console.log("✅ Informations stagiaire chargées:", stagiaire)
+      setStagiaireInfo(stagiaire)
     } catch (error) {
-      console.error("Erreur lors du chargement des statistiques:", error)
+      console.error("💥 Erreur loadStagiaireInfo:", error)
     }
+  }
+
+  const loadStats = async () => {
+    try {
+      console.log("📊 Chargement des statistiques...")
+
+      const response = await fetch("/api/stagiaire/stats")
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data = await response.json()
+
+      if (data.success) {
+        console.log("✅ Statistiques chargées:", data.data)
+        setStats(data.data)
+      } else {
+        console.error("❌ Erreur API stats:", data.error)
+        // Utiliser des stats par défaut
+        setStats({
+          demandes_total: 0,
+          demandes_en_attente: 0,
+          demandes_approuvees: 0,
+          demandes_rejetees: 0,
+          documents_total: 0,
+          evaluations_total: 0,
+          note_moyenne: 0,
+        })
+      }
+    } catch (error) {
+      console.error("💥 Erreur lors du chargement des statistiques:", error)
+      // Stats par défaut en cas d'erreur
+      setStats({
+        demandes_total: 0,
+        demandes_en_attente: 0,
+        demandes_approuvees: 0,
+        demandes_rejetees: 0,
+        documents_total: 0,
+        evaluations_total: 0,
+        note_moyenne: 0,
+      })
+    }
+  }
+
+  const getProgressPercentage = () => {
+    if (!stagiaireInfo?.date_debut || !stagiaireInfo?.date_fin) return 0
+
+    const debut = new Date(stagiaireInfo.date_debut)
+    const fin = new Date(stagiaireInfo.date_fin)
+    const maintenant = new Date()
+
+    if (maintenant < debut) return 0
+    if (maintenant > fin) return 100
+
+    const totalDuration = fin.getTime() - debut.getTime()
+    const elapsed = maintenant.getTime() - debut.getTime()
+    return Math.round((elapsed / totalDuration) * 100)
   }
 
   if (loading) {
@@ -85,40 +164,70 @@ export default function StagiaireDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       <Header user={user} />
 
-      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <main className="flex-1 max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Mon espace stagiaire</h1>
-          <p className="text-gray-600">Bienvenue, {user?.name}</p>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Mon espace stagiaire</h1>
+          <p className="text-gray-600 dark:text-gray-400">Bienvenue, {user?.name}</p>
+
+          {/* Notification email */}
+          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <p className="text-sm text-blue-800 dark:text-blue-200">
+                <strong>Notifications email activées :</strong> Vous recevrez une notification par email lors du
+                traitement de vos demandes.
+              </p>
+            </div>
+          </div>
         </div>
 
         {/* Informations du stage */}
         {stagiaireInfo && (
           <Card className="mb-8">
             <CardHeader>
-              <CardTitle>Informations de stage</CardTitle>
+              <CardTitle className="flex items-center justify-between">
+                <span>Informations de stage</span>
+                <Badge variant={stagiaireInfo.statut === "actif" ? "default" : "secondary"}>
+                  {stagiaireInfo.statut}
+                </Badge>
+              </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div>
-                  <p className="text-sm text-gray-600">Entreprise</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Entreprise</p>
                   <p className="font-medium">{stagiaireInfo.entreprise || "Non définie"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Poste</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Poste</p>
                   <p className="font-medium">{stagiaireInfo.poste || "Non défini"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Tuteur</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Spécialité</p>
+                  <p className="font-medium">{stagiaireInfo.specialite || "Non définie"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Niveau</p>
+                  <p className="font-medium">{stagiaireInfo.niveau || "Non défini"}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Tuteur</p>
                   <p className="font-medium">{stagiaireInfo.tuteur?.name || "Non assigné"}</p>
                 </div>
                 <div>
-                  <p className="text-sm text-gray-600">Statut</p>
-                  <Badge variant={stagiaireInfo.statut === "actif" ? "default" : "secondary"}>
-                    {stagiaireInfo.statut}
-                  </Badge>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Progression</p>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div
+                        className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                        style={{ width: `${getProgressPercentage()}%` }}
+                      ></div>
+                    </div>
+                    <span className="text-sm font-medium">{getProgressPercentage()}%</span>
+                  </div>
                 </div>
               </div>
             </CardContent>
@@ -126,7 +235,7 @@ export default function StagiaireDashboard() {
         )}
 
         {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Mes demandes</CardTitle>
@@ -134,7 +243,16 @@ export default function StagiaireDashboard() {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stats?.demandes_total || 0}</div>
-              <p className="text-xs text-muted-foreground">Demandes soumises</p>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground mt-2">
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {stats?.demandes_en_attente || 0} en attente
+                </div>
+                <div className="flex items-center gap-1">
+                  <CheckCircle className="h-3 w-3" />
+                  {stats?.demandes_approuvees || 0} approuvées
+                </div>
+              </div>
             </CardContent>
           </Card>
 
@@ -157,6 +275,19 @@ export default function StagiaireDashboard() {
             <CardContent>
               <div className="text-2xl font-bold">{stats?.evaluations_total || 0}</div>
               <p className="text-xs text-muted-foreground">Évaluations reçues</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Note moyenne</CardTitle>
+              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {stats?.note_moyenne ? `${stats.note_moyenne.toFixed(1)}/20` : "N/A"}
+              </div>
+              <p className="text-xs text-muted-foreground">Sur toutes les évaluations</p>
             </CardContent>
           </Card>
         </div>
@@ -184,7 +315,7 @@ export default function StagiaireDashboard() {
             <CardContent>
               <Button className="w-full" onClick={() => router.push("/stagiaire/demandes")}>
                 <FileText className="mr-2 h-4 w-4" />
-                Voir mes demandes
+                Voir mes demandes ({stats?.demandes_total || 0})
               </Button>
             </CardContent>
           </Card>
@@ -197,7 +328,7 @@ export default function StagiaireDashboard() {
             <CardContent>
               <Button className="w-full" onClick={() => router.push("/stagiaire/documents")}>
                 <FileText className="mr-2 h-4 w-4" />
-                Mes documents
+                Mes documents ({stats?.documents_total || 0})
               </Button>
             </CardContent>
           </Card>
@@ -208,7 +339,7 @@ export default function StagiaireDashboard() {
               <CardDescription>Mettre à jour mes informations</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" onClick={() => router.push("/stagiaire/profil")}>
+              <Button className="w-full" onClick={() => router.push("/stagiaire/profile")}>
                 <User className="mr-2 h-4 w-4" />
                 Modifier mon profil
               </Button>
@@ -216,6 +347,8 @@ export default function StagiaireDashboard() {
           </Card>
         </div>
       </main>
+
+      <Footer />
     </div>
   )
 }
