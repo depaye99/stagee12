@@ -5,26 +5,13 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Header } from "@/components/layout/header"
-import { Footer } from "@/components/layout/footer"
-import { Users, UserPlus, FileText, BarChart3, Settings, UserCheck } from "lucide-react"
+import { Users, FileText, ClipboardList, Settings, UserPlus, FolderOpen } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 
-interface AdminStats {
-  users_total: number
-  stagiaires_total: number
-  demandes_total: number
-  demandes_en_attente: number
-}
-
 export default function AdminDashboard() {
   const [user, setUser] = useState<any>(null)
-  const [stats, setStats] = useState<AdminStats>({
-    users_total: 0,
-    stagiaires_total: 0,
-    demandes_total: 0,
-    demandes_en_attente: 0,
-  })
+  const [stats, setStats] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const router = useRouter()
   const supabase = createClient()
@@ -33,39 +20,69 @@ export default function AdminDashboard() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        console.log("🔍 Vérification de l'authentification admin...")
+
         const {
           data: { session },
         } = await supabase.auth.getSession()
 
         if (!session) {
+          console.log("❌ Pas de session")
           router.push("/auth/login")
           return
         }
 
-        const { data: profile, error } = await supabase.from("users").select("*").eq("id", session.user.id).single()
+        console.log("✅ Session trouvée:", session.user.email)
 
-        if (error || !profile || profile.role !== "admin") {
-          console.error("❌ Erreur profil admin:", error)
+        const { data: profile, error: profileError } = await supabase
+          .from("users")
+          .select("*")
+          .eq("id", session.user.id)
+          .single()
+
+        if (profileError) {
+          console.error("❌ Erreur récupération profil:", profileError)
+          toast({
+            title: "Erreur",
+            description: "Impossible de récupérer le profil utilisateur",
+            variant: "destructive",
+          })
           router.push("/auth/login")
           return
         }
 
+        if (!profile || profile.role !== "admin") {
+          console.log("❌ Profil non admin:", profile?.role)
+          toast({
+            title: "Accès refusé",
+            description: "Vous n'avez pas les permissions d'administrateur",
+            variant: "destructive",
+          })
+          router.push("/")
+          return
+        }
+
+        console.log("✅ Profil admin confirmé")
         setUser(profile)
         await loadStats()
-      } catch (error) {
-        console.error("💥 Erreur checkAuth admin:", error)
-        router.push("/auth/login")
-      } finally {
         setLoading(false)
+      } catch (error) {
+        console.error("💥 Erreur auth check:", error)
+        toast({
+          title: "Erreur",
+          description: "Erreur lors de la vérification de l'authentification",
+          variant: "destructive",
+        })
+        router.push("/auth/login")
       }
     }
 
     checkAuth()
-  }, [router, supabase])
+  }, [router, supabase, toast])
 
   const loadStats = async () => {
     try {
-      console.log("📊 Chargement des statistiques admin...")
+      console.log("📊 Chargement des statistiques...")
 
       const response = await fetch("/api/statistics")
 
@@ -76,67 +93,52 @@ export default function AdminDashboard() {
       const data = await response.json()
 
       if (data.success) {
-        console.log("✅ Statistiques admin chargées:", data.data)
+        console.log("✅ Statistiques chargées:", data.data)
         setStats(data.data)
       } else {
         console.error("❌ Erreur API stats:", data.error)
-        toast({
-          title: "Erreur",
-          description: "Impossible de charger les statistiques",
-          variant: "destructive",
-        })
+        throw new Error(data.error)
       }
     } catch (error) {
       console.error("💥 Erreur lors du chargement des statistiques:", error)
-      toast({
-        title: "Erreur",
-        description: "Erreur lors du chargement des statistiques",
-        variant: "destructive",
+      // Utiliser des stats par défaut
+      setStats({
+        stagiaires_total: 0,
+        demandes_total: 0,
+        documents_total: 0,
+        evaluations_total: 0,
       })
     }
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <Header user={user} />
 
-      <main className="flex-1 max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Tableau de bord Administrateur</h1>
-          <p className="text-gray-600 dark:text-gray-400">
-            Bienvenue, {user?.name || user?.email}. Gérez votre plateforme de stages.
-          </p>
+          <p className="text-gray-600 dark:text-gray-400">Bienvenue, {user?.name}</p>
         </div>
 
         {/* Statistiques */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Utilisateurs</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{stats.users_total}</div>
-              <p className="text-xs text-muted-foreground">Total des utilisateurs</p>
-            </CardContent>
-          </Card>
-
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Stagiaires</CardTitle>
-              <UserCheck className="h-4 w-4 text-muted-foreground" />
+              <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.stagiaires_total}</div>
-              <p className="text-xs text-muted-foreground">Stagiaires actifs</p>
+              <div className="text-2xl font-bold">{stats?.stagiaires_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Total des stagiaires</p>
             </CardContent>
           </Card>
 
@@ -146,38 +148,45 @@ export default function AdminDashboard() {
               <FileText className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.demandes_total}</div>
-              <p className="text-xs text-muted-foreground">Total des demandes</p>
+              <div className="text-2xl font-bold">{stats?.demandes_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Demandes en cours</p>
             </CardContent>
           </Card>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">En attente</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium">Documents</CardTitle>
+              <FolderOpen className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.demandes_en_attente}</div>
-              <p className="text-xs text-muted-foreground">Demandes à traiter</p>
+              <div className="text-2xl font-bold">{stats?.documents_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Documents gérés</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Évaluations</CardTitle>
+              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats?.evaluations_total || 0}</div>
+              <p className="text-xs text-muted-foreground">Évaluations réalisées</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Actions rapides */}
+        {/* Actions principales */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <Card>
             <CardHeader>
               <CardTitle>Gestion des utilisateurs</CardTitle>
-              <CardDescription>Créer, modifier et gérer les utilisateurs</CardDescription>
+              <CardDescription>Administrer les comptes utilisateurs</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent>
               <Button className="w-full" onClick={() => router.push("/admin/users")}>
                 <Users className="mr-2 h-4 w-4" />
-                Voir tous les utilisateurs ({stats.users_total})
-              </Button>
-              <Button variant="outline" className="w-full" onClick={() => router.push("/admin/users/new")}>
-                <UserPlus className="mr-2 h-4 w-4" />
-                Ajouter un utilisateur
+                Gérer les utilisateurs
               </Button>
             </CardContent>
           </Card>
@@ -185,16 +194,12 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Gestion des stagiaires</CardTitle>
-              <CardDescription>Superviser les stagiaires et leurs tuteurs</CardDescription>
+              <CardDescription>Superviser tous les stagiaires</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent>
               <Button className="w-full" onClick={() => router.push("/admin/stagiaires")}>
-                <UserCheck className="mr-2 h-4 w-4" />
-                Voir tous les stagiaires ({stats.stagiaires_total})
-              </Button>
-              <Button variant="outline" className="w-full" onClick={() => router.push("/admin/stagiaires/new")}>
                 <UserPlus className="mr-2 h-4 w-4" />
-                Ajouter un stagiaire
+                Gérer les stagiaires
               </Button>
             </CardContent>
           </Card>
@@ -202,12 +207,12 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Demandes</CardTitle>
-              <CardDescription>Traiter les demandes des stagiaires</CardDescription>
+              <CardDescription>Traiter les demandes en attente</CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" onClick={() => router.push("/admin/demandes")}>
                 <FileText className="mr-2 h-4 w-4" />
-                Voir toutes les demandes ({stats.demandes_total})
+                Voir les demandes
               </Button>
             </CardContent>
           </Card>
@@ -215,11 +220,11 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Rapports</CardTitle>
-              <CardDescription>Générer des rapports et statistiques</CardDescription>
+              <CardDescription>Générer des rapports détaillés</CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" onClick={() => router.push("/admin/reports")}>
-                <BarChart3 className="mr-2 h-4 w-4" />
+                <ClipboardList className="mr-2 h-4 w-4" />
                 Voir les rapports
               </Button>
             </CardContent>
@@ -228,7 +233,7 @@ export default function AdminDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Paramètres</CardTitle>
-              <CardDescription>Configuration de la plateforme</CardDescription>
+              <CardDescription>Configuration du système</CardDescription>
             </CardHeader>
             <CardContent>
               <Button className="w-full" onClick={() => router.push("/admin/settings")}>
@@ -237,23 +242,8 @@ export default function AdminDashboard() {
               </Button>
             </CardContent>
           </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Tuteurs</CardTitle>
-              <CardDescription>Gérer les tuteurs et leurs assignations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => router.push("/admin/tuteurs")}>
-                <Users className="mr-2 h-4 w-4" />
-                Gérer les tuteurs
-              </Button>
-            </CardContent>
-          </Card>
         </div>
       </main>
-
-      <Footer />
     </div>
   )
 }

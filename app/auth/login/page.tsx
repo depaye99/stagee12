@@ -67,7 +67,7 @@ export default function LoginPage() {
           <div
             className="w-full bg-cover bg-center"
             style={{
-              backgroundImage: `url('https://cdn.pixabay.com/photo/2017/08/01/00/44/laptop-2562361_1280.jpg')`,
+              backgroundImage: `url('/images/hero-laptop.png')`,
             }}
           >
             <div className="absolute inset-0 bg-black bg-opacity-20"></div>
