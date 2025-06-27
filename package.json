@@ -37,7 +37,6 @@
     "@radix-ui/react-toggle": "latest",
     "@radix-ui/react-toggle-group": "latest",
     "@radix-ui/react-tooltip": "latest",
-    "@supabase/auth-helpers-nextjs": "latest",
     "@supabase/ssr": "latest",
     "@supabase/supabase-js": "latest",
     "autoprefixer": "^10.4.20",
@@ -62,7 +61,7 @@
     "tailwindcss-animate": "^1.0.7",
     "use-sync-external-store": "latest",
     "vaul": "latest",
-    "zod": "latest",
+    "zod": "^3.24.1",
     "zustand": "latest"
   },
   "devDependencies": {
