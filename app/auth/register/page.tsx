@@ -189,25 +189,6 @@ export default function RegisterPage() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="department">Département</Label>
-              <Input
-                id="department"
-                type="text"
-                value={formData.department || ""}
-                onChange={(e) => handleInputChange("department", e.target.value)}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="position">Poste</Label>
-              <Input
-                id="position"
-                type="text"
-                value={formData.position || ""}
-                onChange={(e) => handleInputChange("position", e.target.value)}
-              />
-            </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Mot de passe *</Label>
