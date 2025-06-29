@@ -1,4 +1,3 @@
-
 -- Corriger toutes les permissions et données
 
 -- 1. Mettre à jour les politiques RLS pour être plus permissives

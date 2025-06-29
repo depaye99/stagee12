@@ -1,4 +1,3 @@
-
 -- Créer la table system_settings manquante
 CREATE TABLE IF NOT EXISTS system_settings (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -1,4 +1,3 @@
-
 -- Script pour corriger la synchronisation entre users et stagiaires
 
 -- 1. Identifier les utilisateurs stagiaires sans entrée dans la table stagiaires
