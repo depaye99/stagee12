@@ -1,112 +1,105 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { z } from "zod"
 
-const rejectDemandeSchema = z.object({
-  commentaire_tuteur: z.string().min(10, "Veuillez préciser la raison du refus"),
-})
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const body = await request.json()
+    const supabase = createClient()
     
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    // Vérifier que l'utilisateur est un tuteur
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
+    // Vérifier que l'utilisateur est tuteur
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
       .single()
 
-    if (userData?.role !== "tuteur") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    if (userError || userData?.role !== 'tuteur') {
+      return NextResponse.json(
+        { error: 'Accès non autorisé' },
+        { status: 403 }
+      )
     }
 
-    // Vérifier que la demande concerne un stagiaire du tuteur
-    const { data: demande, error: fetchError } = await supabase
-      .from("demandes")
-      .select(`
-        *,
-        stagiaire:stagiaires(
-          id,
-          tuteur_id,
-          users(name, email)
-        )
-      `)
-      .eq("id", params.id)
+    const { id } = params
+    const { commentaire, raison } = await request.json()
+
+    if (!commentaire && !raison) {
+      return NextResponse.json(
+        { error: 'Une raison de rejet est requise' },
+        { status: 400 }
+      )
+    }
+
+    // Vérifier que la demande existe et est assignée au tuteur
+    const { data: demande, error: checkError } = await supabase
+      .from('demandes')
+      .select('*, stagiaires!inner(tuteur_id)')
+      .eq('id', id)
       .single()
 
-    if (fetchError || !demande) {
-      return NextResponse.json({ error: "Demande non trouvée" }, { status: 404 })
+    if (checkError || !demande) {
+      return NextResponse.json(
+        { error: 'Demande non trouvée' },
+        { status: 404 }
+      )
     }
 
-    if (demande.stagiaire?.tuteur_id !== user.id) {
-      return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
+    if (demande.stagiaires.tuteur_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Non autorisé à traiter cette demande' },
+        { status: 403 }
+      )
     }
 
-    if (demande.statut !== "en_attente") {
-      return NextResponse.json({ 
-        error: "Cette demande a déjà été traitée" 
-      }, { status: 400 })
-    }
-
-    const { commentaire_tuteur } = rejectDemandeSchema.parse(body)
-
-    const { data: updatedDemande, error } = await supabase
-      .from("demandes")
+    const { data, error } = await supabase
+      .from('demandes')
       .update({
-        statut: "rejetee",
-        commentaire_tuteur,
+        statut: 'rejetee',
+        commentaire_tuteur: commentaire || raison,
         date_traitement: new Date().toISOString(),
-        traite_par: user.id
+        updated_at: new Date().toISOString()
       })
-      .eq("id", params.id)
+      .eq('id', id)
       .select()
-      .single()
 
     if (error) {
-      console.error("Erreur rejet demande:", error)
-      return NextResponse.json({ error: "Erreur lors du rejet" }, { status: 500 })
+      console.error('Erreur reject demande:', error)
+      return NextResponse.json(
+        { error: 'Erreur lors du rejet' },
+        { status: 500 }
+      )
     }
 
     // Créer une notification pour le stagiaire
-    const { data: stagiaireUser } = await supabase
-      .from("stagiaires")
-      .select("user_id")
-      .eq("id", demande.stagiaire_id)
-      .single()
-
-    if (stagiaireUser) {
-      await supabase.from("notifications").insert({
-        user_id: stagiaireUser.user_id,
-        type: "demande_rejetee",
-        titre: "Demande refusée",
-        contenu: `Votre demande de ${demande.type} a été refusée. Motif: ${commentaire_tuteur}`,
-        metadata: { demande_id: demande.id }
+    await supabase
+      .from('notifications')
+      .insert({
+        user_id: demande.user_id,
+        type: 'demande_rejetee',
+        titre: 'Demande rejetée',
+        message: `Votre demande "${demande.titre}" a été rejetée`,
+        data: { demande_id: id, raison: commentaire || raison }
       })
-    }
 
-    return NextResponse.json({ demande: updatedDemande })
+    return NextResponse.json(data[0])
 
   } catch (error) {
-    console.error("Erreur reject demande:", error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: "Données invalides", 
-        details: error.errors 
-      }, { status: 400 })
-    }
-
-    return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
+    console.error('Erreur reject demande:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
   }
 }

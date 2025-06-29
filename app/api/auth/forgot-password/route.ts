@@ -1,54 +1,40 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { z } from "zod"
-
-const forgotPasswordSchema = z.object({
-  email: z.string().email()
-})
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(request: NextRequest) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const body = await request.json()
+    const { email } = await request.json()
 
-    const { email } = forgotPasswordSchema.parse(body)
-
-    // Vérifier que l'utilisateur existe
-    const { data: user, error: userError } = await supabase
-      .from("users")
-      .select("id, email")
-      .eq("email", email)
-      .single()
-
-    if (userError || !user) {
-      // Pour des raisons de sécurité, on ne révèle pas si l'email existe
-      return NextResponse.json({ 
-        message: "Si cette adresse email existe, un lien de réinitialisation a été envoyé" 
-      })
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Email requis' },
+        { status: 400 }
+      )
     }
 
-    // Utiliser la fonction de réinitialisation de Supabase
+    const supabase = createClient()
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'}/auth/reset-password`
+      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/reset-password`,
     })
 
     if (error) {
-      console.error("Erreur reset password:", error)
-      return NextResponse.json({ error: "Erreur lors de l'envoi" }, { status: 500 })
+      console.error('Erreur reset password:', error)
+      return NextResponse.json(
+        { error: 'Erreur lors de l\'envoi de l\'email de récupération' },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ 
-      message: "Si cette adresse email existe, un lien de réinitialisation a été envoyé" 
+    return NextResponse.json({
+      message: 'Email de récupération envoyé avec succès'
     })
 
   } catch (error) {
-    console.error("Erreur forgot password:", error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Email invalide" }, { status: 400 })
-    }
-
-    return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
+    console.error('Erreur forgot password:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
   }
 }

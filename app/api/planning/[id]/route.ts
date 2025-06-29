@@ -1,86 +1,53 @@
-import { NextRequest, NextResponse } from "next/server"
-import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
-import { cookies } from "next/headers"
-import { z } from "zod"
-
-const planningEventUpdateSchema = z.object({
-  title: z.string().min(1, "Le titre est requis").optional(),
-  description: z.string().optional(),
-  date_debut: z.string().transform((str) => new Date(str)).optional(),
-  date_fin: z.string().transform((str) => new Date(str)).optional(),
-  type: z.enum(["formation", "reunion", "evaluation", "conge", "autre"]).optional(),
-  lieu: z.string().optional(),
-  status: z.enum(["planifie", "en_cours", "termine", "annule"]).optional(),
-})
+import { NextRequest, NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    
+    const supabase = createClient()
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    const { data: event, error } = await supabase
-      .from("planning_events")
+    const { id } = params
+
+    const { data, error } = await supabase
+      .from('planning')
       .select(`
         *,
-        stagiaire:stagiaires(
-          id,
-          users(name, email)
+        stagiaire:stagiaires!inner(
+          user_id,
+          users!inner(name, email)
         ),
-        created_by_user:users!planning_events_created_by_fkey(name, email)
+        tuteur:users!planning_tuteur_id_fkey(name, email)
       `)
-      .eq("id", params.id)
+      .eq('id', id)
       .single()
 
     if (error) {
-      console.error("Erreur récupération événement:", error)
-      return NextResponse.json({ error: "Événement non trouvé" }, { status: 404 })
+      console.error('Erreur get planning:', error)
+      return NextResponse.json(
+        { error: 'Planning non trouvé' },
+        { status: 404 }
+      )
     }
 
-    // Vérifier les permissions
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (userData?.role === "stagiaire") {
-      // Vérifier que c'est bien l'événement du stagiaire
-      const { data: stagiaireData } = await supabase
-        .from("stagiaires")
-        .select("id")
-        .eq("user_id", user.id)
-        .single()
-
-      if (stagiaireData?.id !== event.stagiaire_id) {
-        return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
-      }
-    } else if (userData?.role === "tuteur") {
-      // Vérifier que c'est l'événement d'un de ses stagiaires ou créé par lui
-      if (event.created_by !== user.id && event.stagiaire_id) {
-        const { data: stagiaireData } = await supabase
-          .from("stagiaires")
-          .select("tuteur_id")
-          .eq("id", event.stagiaire_id)
-          .single()
-
-        if (stagiaireData?.tuteur_id !== user.id) {
-          return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
-        }
-      }
-    }
-
-    return NextResponse.json({ event })
+    return NextResponse.json(data)
 
   } catch (error) {
-    console.error("Erreur API événement:", error)
-    return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
+    console.error('Erreur get planning:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
   }
 }
 
@@ -89,91 +56,76 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const body = await request.json()
-    
+    const supabase = createClient()
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    // Valider les données
-    const validatedData = planningEventUpdateSchema.parse(body)
+    const { id } = params
+    const updateData = await request.json()
 
-    // Vérifier que la date de fin est après la date de début si les deux sont fournies
-    if (validatedData.date_debut && validatedData.date_fin) {
-      if (validatedData.date_fin <= validatedData.date_debut) {
-        return NextResponse.json({ 
-          error: "La date de fin doit être après la date de début" 
-        }, { status: 400 })
+    // Vérifier que le planning appartient au tuteur
+    const { data: planning, error: checkError } = await supabase
+      .from('planning')
+      .select('tuteur_id')
+      .eq('id', id)
+      .single()
+
+    if (checkError || !planning) {
+      return NextResponse.json(
+        { error: 'Planning non trouvé' },
+        { status: 404 }
+      )
+    }
+
+    if (planning.tuteur_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Non autorisé à modifier ce planning' },
+        { status: 403 }
+      )
+    }
+
+    // Valider les dates si elles sont modifiées
+    if (updateData.date_debut && updateData.date_fin) {
+      if (new Date(updateData.date_debut) >= new Date(updateData.date_fin)) {
+        return NextResponse.json(
+          { error: 'La date de début doit être antérieure à la date de fin' },
+          { status: 400 }
+        )
       }
     }
 
-    // Récupérer l'événement existant
-    const { data: existingEvent, error: fetchError } = await supabase
-      .from("planning_events")
-      .select("created_by, stagiaire_id")
-      .eq("id", params.id)
-      .single()
-
-    if (fetchError || !existingEvent) {
-      return NextResponse.json({ error: "Événement non trouvé" }, { status: 404 })
-    }
-
-    // Vérifier les permissions
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (userData?.role === "tuteur") {
-      // Vérifier que c'est bien le créateur ou le tuteur du stagiaire
-      if (existingEvent.created_by !== user.id && existingEvent.stagiaire_id) {
-        const { data: stagiaireData } = await supabase
-          .from("stagiaires")
-          .select("tuteur_id")
-          .eq("id", existingEvent.stagiaire_id)
-          .single()
-
-        if (stagiaireData?.tuteur_id !== user.id) {
-          return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
-        }
-      }
-    } else if (!["rh", "admin"].includes(userData?.role || "")) {
-      return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
-    }
-
-    const updateData: any = { ...validatedData }
-    if (validatedData.date_debut) {
-      updateData.date_debut = validatedData.date_debut.toISOString()
-    }
-    if (validatedData.date_fin) {
-      updateData.date_fin = validatedData.date_fin.toISOString()
-    }
-
-    const { data: event, error } = await supabase
-      .from("planning_events")
-      .update(updateData)
-      .eq("id", params.id)
+    const { data, error } = await supabase
+      .from('planning')
+      .update({
+        ...updateData,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
       .select()
-      .single()
 
     if (error) {
-      console.error("Erreur modification événement:", error)
-      return NextResponse.json({ error: "Erreur lors de la modification" }, { status: 500 })
+      console.error('Erreur update planning:', error)
+      return NextResponse.json(
+        { error: 'Erreur lors de la mise à jour' },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ event })
+    return NextResponse.json(data[0])
 
   } catch (error) {
-    console.error("Erreur modification événement:", error)
-    
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: "Données invalides", details: error.errors }, { status: 400 })
-    }
-
-    return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
+    console.error('Erreur update planning:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
   }
 }
 
@@ -182,49 +134,62 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const supabase = createRouteHandlerClient({ cookies })
-    
+    const supabase = createClient()
+
     const { data: { user }, error: authError } = await supabase.auth.getUser()
+
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    // Vérifier les permissions (seuls admin, RH et créateur peuvent supprimer)
-    const { data: userData } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
+    const { id } = params
+
+    // Vérifier que le planning appartient au tuteur
+    const { data: planning, error: checkError } = await supabase
+      .from('planning')
+      .select('tuteur_id')
+      .eq('id', id)
       .single()
 
-    if (userData?.role === "tuteur") {
-      // Vérifier que c'est le créateur
-      const { data: eventData } = await supabase
-        .from("planning_events")
-        .select("created_by")
-        .eq("id", params.id)
-        .single()
+    if (checkError || !planning) {
+      return NextResponse.json(
+        { error: 'Planning non trouvé' },
+        { status: 404 }
+      )
+    }
 
-      if (eventData?.created_by !== user.id) {
-        return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
-      }
-    } else if (!["rh", "admin"].includes(userData?.role || "")) {
-      return NextResponse.json({ error: "Permission refusée" }, { status: 403 })
+    if (planning.tuteur_id !== user.id) {
+      return NextResponse.json(
+        { error: 'Non autorisé à supprimer ce planning' },
+        { status: 403 }
+      )
     }
 
     const { error } = await supabase
-      .from("planning_events")
+      .from('planning')
       .delete()
-      .eq("id", params.id)
+      .eq('id', id)
 
     if (error) {
-      console.error("Erreur suppression événement:", error)
-      return NextResponse.json({ error: "Erreur lors de la suppression" }, { status: 500 })
+      console.error('Erreur delete planning:', error)
+      return NextResponse.json(
+        { error: 'Erreur lors de la suppression' },
+        { status: 500 }
+      )
     }
 
-    return NextResponse.json({ message: "Événement supprimé avec succès" })
+    return NextResponse.json({
+      message: 'Planning supprimé avec succès'
+    })
 
   } catch (error) {
-    console.error("Erreur suppression événement:", error)
-    return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
+    console.error('Erreur delete planning:', error)
+    return NextResponse.json(
+      { error: 'Erreur serveur' },
+      { status: 500 }
+    )
   }
 }
