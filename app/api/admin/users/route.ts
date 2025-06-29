@@ -3,102 +3,116 @@ import { createClient } from "@/lib/supabase/server"
 
 export async function POST(request: NextRequest) {
   try {
-    console.log("🔍 API Admin Users POST - Début de la requête")
-
     const supabase = await createClient()
 
-    // Vérifier l'authentification
+    // Vérifier l'authentification et les permissions
     const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
 
-    if (sessionError || !session?.user) {
-      console.log("❌ Pas de session utilisateur:", sessionError?.message)
-      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
+    if (authError || !user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // Vérifier que l'utilisateur est admin
-    const { data: adminProfile, error: adminError } = await supabase
+    // Vérifier le rôle admin avec gestion d'erreur
+    const { data: profile, error: profileError } = await supabase
       .from("users")
       .select("role")
-      .eq("id", session.user.id)
+      .eq("id", user.id)
       .single()
 
-    if (adminError || !adminProfile || adminProfile.role !== "admin") {
-      console.log("❌ Utilisateur non autorisé:", adminProfile?.role)
-      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
+    if (profileError || !profile || profile.role !== "admin") {
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
-    const body = await request.json()
-    const { email, password, name, role, phone, department, position } = body
+    const userData = await request.json()
+    console.log("📤 Création d'utilisateur:", userData)
 
-    console.log("📝 Données reçues:", { email, name, role, department })
-
-    // Validation des données
-    if (!email || !password || !name || !role) {
-      return NextResponse.json(
-        { success: false, error: "Email, mot de passe, nom et rôle sont obligatoires" },
-        { status: 400 },
-      )
+    // Validation des données requises
+    if (!userData.email || !userData.password || !userData.name || !userData.role) {
+      return NextResponse.json({ 
+        error: "Données manquantes (email, password, name, role requis)" 
+      }, { status: 400 })
     }
 
     // Créer l'utilisateur dans Supabase Auth
-    const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
+    const { data: authUser, error: authUserError } = await supabase.auth.admin.createUser({
+      email: userData.email,
+      password: userData.password,
       email_confirm: true,
+      user_metadata: {
+        name: userData.name,
+        role: userData.role
+      },
     })
 
-    if (authError) {
-      console.error("❌ Erreur création auth:", authError)
-      return NextResponse.json(
-        { success: false, error: `Erreur lors de la création du compte: ${authError.message}` },
-        { status: 400 },
-      )
+    if (authUserError) {
+      console.error("❌ Erreur création auth:", authUserError)
+      return NextResponse.json({ 
+        error: authUserError.message || "Erreur lors de la création du compte" 
+      }, { status: 400 })
     }
 
-    if (!authUser.user) {
-      return NextResponse.json({ success: false, error: "Erreur lors de la création du compte" }, { status: 400 })
-    }
+    console.log("✅ Utilisateur auth créé:", authUser.user?.id)
 
     // Créer le profil utilisateur
-    const { data: userProfile, error: profileError } = await supabase
+    const { data: newUser, error: userError } = await supabase
       .from("users")
       .insert({
-        id: authUser.user.id,
-        email,
-        name,
-        role,
-        phone: phone || null,
-        department: department || null,
-        position: position || null,
-        is_active: true,
+        id: authUser.user!.id,
+        email: userData.email,
+        name: userData.name,
+        role: userData.role,
+        phone: userData.phone || null,
+        department: userData.department || null,
+        position: userData.position || null,
+        address: userData.address || null,
+        is_active: userData.is_active !== false, // Par défaut true
       })
       .select()
       .single()
 
-    if (profileError) {
-      console.error("❌ Erreur création profil:", profileError)
-
-      // Supprimer l'utilisateur auth en cas d'erreur
-      await supabase.auth.admin.deleteUser(authUser.user.id)
-
-      return NextResponse.json(
-        { success: false, error: `Erreur lors de la création du profil: ${profileError.message}` },
-        { status: 400 },
-      )
+    if (userError) {
+      console.error("❌ Erreur création profil:", userError)
+      // Supprimer l'utilisateur auth si erreur profil
+      try {
+        await supabase.auth.admin.deleteUser(authUser.user!.id)
+      } catch (deleteError) {
+        console.error("❌ Erreur suppression utilisateur auth:", deleteError)
+      }
+      return NextResponse.json({ 
+        error: userError.message || "Erreur lors de la création du profil" 
+      }, { status: 400 })
     }
 
-    console.log("✅ Utilisateur créé avec succès:", userProfile.id)
+    // Si l'utilisateur est un stagiaire, créer également l'entrée dans la table stagiaires
+    if (userData.role === "stagiaire") {
+      const { error: stagiaireError } = await supabase
+        .from("stagiaires")
+        .insert({
+          user_id: authUser.user!.id,
+          statut: "actif"
+        })
+
+      if (stagiaireError) {
+        console.warn("⚠️ Erreur création profil stagiaire:", stagiaireError)
+        // Ne pas faire échouer la création pour cette erreur
+      }
+    }
+
+    console.log("✅ Utilisateur créé avec succès")
 
     return NextResponse.json({
       success: true,
-      data: userProfile,
+      message: "Utilisateur créé avec succès",
+      data: newUser,
     })
-  } catch (error: any) {
-    console.error("💥 Erreur API Admin Users POST:", error)
-    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
+  } catch (error) {
+    console.error("💥 Erreur création utilisateur:", error)
+    return NextResponse.json({ 
+      error: "Erreur serveur interne" 
+    }, { status: 500 })
   }
 }
 

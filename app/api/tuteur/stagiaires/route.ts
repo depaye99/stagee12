@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server"
+
+import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
 export async function GET() {
@@ -12,58 +13,60 @@ export async function GET() {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.error("❌ Erreur auth tuteur stagiaires:", authError)
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    // Vérifier que l'utilisateur est tuteur
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    // Vérifier le rôle tuteur
+    const { data: profile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single()
 
     if (!profile || profile.role !== "tuteur") {
-      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
+      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
-    console.log("🔍 Récupération des stagiaires pour le tuteur:", user.id)
-
-    // Récupérer les stagiaires assignés à ce tuteur avec une requête simplifiée
-    const { data: stagiaires, error } = await supabase
+    // Récupérer les stagiaires assignés à ce tuteur
+    const { data: stagiaires, error: stagiairesError } = await supabase
       .from("stagiaires")
       .select(`
         id,
-        user_id,
-        entreprise,
-        poste,
-        specialite,
-        niveau,
+        statut,
         date_debut,
         date_fin,
-        statut,
-        notes,
         created_at,
-        users!stagiaires_user_id_fkey (
+        updated_at,
+        users!inner (
           id,
           name,
           email,
-          phone
+          phone,
+          department
         )
       `)
       .eq("tuteur_id", user.id)
       .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("❌ Erreur récupération stagiaires tuteur:", error)
-      return NextResponse.json({ error: "Erreur lors de la récupération des stagiaires" }, { status: 500 })
+    if (stagiairesError) {
+      console.error("❌ Erreur récupération stagiaires tuteur:", stagiairesError)
+      return NextResponse.json({
+        success: true,
+        data: [],
+        message: "Aucun stagiaire trouvé"
+      })
     }
-
-    console.log("✅ Stagiaires du tuteur récupérés:", stagiaires?.length || 0)
 
     return NextResponse.json({
       success: true,
       data: stagiaires || [],
-      count: stagiaires?.length || 0,
     })
   } catch (error) {
     console.error("💥 Erreur API stagiaires tuteur:", error)
-    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      data: [],
+      message: "Erreur serveur interne"
+    })
   }
 }

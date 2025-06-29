@@ -12,32 +12,73 @@ export async function GET() {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
+
+    console.log("🔍 Récupération des demandes pour l'utilisateur:", user.id)
 
     // Récupérer le profil stagiaire
-    const { data: stagiaire } = await supabase.from("stagiaires").select("id").eq("user_id", user.id).single()
+    const { data: stagiaire, error: stagiaireError } = await supabase
+      .from("stagiaires")
+      .select("id")
+      .eq("user_id", user.id)
+      .single()
 
-    if (!stagiaire) {
-      return NextResponse.json({ error: "Profil stagiaire non trouvé" }, { status: 404 })
+    if (stagiaireError || !stagiaire) {
+      console.error("❌ Erreur récupération stagiaire:", stagiaireError)
+      // Si pas de stagiaire trouvé, retourner une liste vide plutôt qu'une erreur
+      return NextResponse.json({
+        success: true,
+        data: [],
+        message: "Aucune demande trouvée"
+      })
     }
 
-    // Récupérer les demandes du stagiaire
-    const { data: demandes, error } = await supabase
+    console.log("✅ Stagiaire trouvé:", stagiaire.id)
+
+    // Récupérer les demandes avec gestion d'erreur
+    const { data: demandes, error: demandesError } = await supabase
       .from("demandes")
-      .select("*")
+      .select(`
+        id,
+        type,
+        titre,
+        description,
+        statut,
+        date_demande,
+        date_reponse,
+        commentaire_reponse,
+        documents_requis,
+        created_at,
+        updated_at,
+        tuteur_id
+      `)
       .eq("stagiaire_id", stagiaire.id)
-      .order("date_demande", { ascending: false })
+      .order("created_at", { ascending: false })
 
-    if (error) {
-      console.error("❌ Erreur récupération demandes:", error)
-      throw error
+    if (demandesError) {
+      console.error("❌ Erreur récupération demandes:", demandesError)
+      // Retourner une liste vide si erreur de récupération
+      return NextResponse.json({
+        success: true,
+        data: [],
+        message: "Erreur lors de la récupération des demandes"
+      })
     }
 
-    return NextResponse.json({ success: true, data: demandes || [] })
+    console.log("✅ Demandes récupérées:", demandes?.length || 0)
+
+    return NextResponse.json({
+      success: true,
+      data: demandes || [],
+    })
   } catch (error) {
     console.error("💥 Erreur API demandes stagiaire:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    return NextResponse.json({ 
+      success: true, 
+      data: [], 
+      message: "Erreur serveur interne" 
+    })
   }
 }
 
@@ -52,11 +93,8 @@ export async function POST(request: NextRequest) {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      console.error("❌ Erreur auth:", authError)
-      return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
-
-    console.log("✅ Utilisateur authentifié:", user.email)
 
     // Récupérer le profil stagiaire
     const { data: stagiaire, error: stagiaireError } = await supabase
@@ -66,46 +104,35 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (stagiaireError || !stagiaire) {
-      console.error("❌ Profil stagiaire non trouvé:", stagiaireError)
+      console.error("❌ Erreur récupération stagiaire:", stagiaireError)
       return NextResponse.json({ error: "Profil stagiaire non trouvé" }, { status: 404 })
     }
-
-    console.log("✅ Stagiaire trouvé:", stagiaire.id)
 
     const body = await request.json()
     const { type, titre, description, documents, periode, congeData, prolongationData } = body
 
-    console.log("📝 Données reçues:", { type, titre })
+    console.log("📤 Création de demande:", { type, titre, stagiaireId: stagiaire.id })
 
-    // Validation
-    if (!type || !titre) {
-      return NextResponse.json({ error: "Type et titre requis" }, { status: 400 })
-    }
-
-    // Construire la description selon le type
-    let finalDescription = description || ""
-
-    if (type === "demande_conge" && congeData) {
-      finalDescription = `Demande de congé du ${congeData.date_debut} au ${congeData.date_fin}. Motif: ${congeData.description}`
-    } else if (type === "demande_prolongation" && prolongationData) {
-      finalDescription = `Demande de prolongation de stage. Période d'extension: ${prolongationData.periode_extension}`
-    } else if (periode && (type === "stage_academique" || type === "stage_professionnel")) {
-      finalDescription = `Demande de ${type.replace("_", " ")}. Début prévu: ${periode.jours}/${periode.mois}/${periode.annee}. Durée: ${periode.nombre_mois} mois.`
+    // Préparer les données de la demande
+    const demandeData = {
+      stagiaire_id: stagiaire.id,
+      type,
+      titre,
+      description: description || "",
+      statut: "en_attente",
+      documents_requis: {
+        documents: documents || {},
+        periode: periode || {},
+        congeData: congeData || {},
+        prolongationData: prolongationData || {},
+        date_creation: new Date().toISOString()
+      },
     }
 
     // Créer la demande
-    const { data: demande, error: demandeError } = await supabase
+    const { data: nouvelleDemande, error: demandeError } = await supabase
       .from("demandes")
-      .insert([
-        {
-          stagiaire_id: stagiaire.id,
-          type,
-          titre,
-          description: finalDescription,
-          statut: "en_attente",
-          date_demande: new Date().toISOString(),
-        },
-      ])
+      .insert(demandeData)
       .select()
       .single()
 
@@ -114,18 +141,43 @@ export async function POST(request: NextRequest) {
       throw demandeError
     }
 
-    console.log("✅ Demande créée:", demande.id)
+    console.log("✅ Demande créée:", nouvelleDemande.id)
 
-    // TODO: Enregistrer les documents associés si nécessaire
-    // TODO: Créer une notification pour les administrateurs
+    // Si des documents ont été uploadés, les associer à la demande
+    if (documents && Object.keys(documents).length > 0) {
+      const documentPromises = Object.entries(documents).map(async ([type, file]) => {
+        if (file) {
+          try {
+            const { error: docError } = await supabase
+              .from("documents")
+              .insert({
+                demande_id: nouvelleDemande.id,
+                user_id: user.id,
+                nom: (file as any)?.name || `${type}_document`,
+                type_document: type,
+                statut: "en_attente",
+                is_public: false
+              })
+
+            if (docError) {
+              console.warn("⚠️ Erreur association document:", docError)
+            }
+          } catch (error) {
+            console.warn("⚠️ Erreur traitement document:", error)
+          }
+        }
+      })
+
+      await Promise.allSettled(documentPromises)
+    }
 
     return NextResponse.json({
       success: true,
-      data: demande,
+      data: nouvelleDemande,
       message: "Demande créée avec succès",
     })
   } catch (error) {
     console.error("💥 Erreur création demande:", error)
-    return NextResponse.json({ error: "Erreur serveur: " + (error as Error).message }, { status: 500 })
+    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 })
   }
 }

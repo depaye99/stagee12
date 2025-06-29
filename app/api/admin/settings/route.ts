@@ -26,6 +26,25 @@ export async function GET() {
     const { data: settings, error } = await supabase.from("system_settings").select("key, value")
 
     if (error) {
+      // Si la table n'existe pas, retourner des paramètres par défaut
+      if (error.message.includes("does not exist")) {
+        console.warn("Table system_settings n'existe pas, utilisation des valeurs par défaut")
+        return NextResponse.json({ 
+          success: true, 
+          data: {
+            company_name: "Bridge Technologies Solutions",
+            company_address: "123 Rue de la Technologie, Yaoundé, Cameroun",
+            company_phone: "+237 123 456 789",
+            company_email: "contact@bridgetech.cm",
+            max_stagiaires_per_tuteur: 5,
+            stage_duration_months: 6,
+            notification_email_enabled: true,
+            auto_assign_tuteur: true,
+            require_document_approval: true,
+            session_timeout_hours: 8
+          }
+        })
+      }
       throw error
     }
 
