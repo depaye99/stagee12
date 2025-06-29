@@ -1,0 +1,231 @@
+
+-- Script pour corriger automatiquement les problèmes détectés par la vérification
+-- Ce script doit être exécuté après le script de vérification
+
+-- =============================================================================
+-- 1. CRÉER LES TABLES MANQUANTES
+-- =============================================================================
+
+-- Table email_notifications si elle n'existe pas
+CREATE TABLE IF NOT EXISTS email_notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    subject TEXT NOT NULL,
+    content TEXT NOT NULL,
+    sent_at TIMESTAMP WITH TIME ZONE,
+    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed')),
+    retry_count INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Table system_settings si elle n'existe pas
+CREATE TABLE IF NOT EXISTS system_settings (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    key TEXT UNIQUE NOT NULL,
+    value JSONB,
+    description TEXT,
+    category TEXT DEFAULT 'general',
+    is_public BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- =============================================================================
+-- 2. AJOUTER LES COLONNES MANQUANTES
+-- =============================================================================
+
+-- Colonnes manquantes dans users
+ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS department TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS position TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP WITH TIME ZONE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT false;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS preferences JSONB DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_completed BOOLEAN DEFAULT false;
+
+-- Colonnes manquantes dans stagiaires
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS duree_mois INTEGER;
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS objectifs TEXT;
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS competences_acquises TEXT[];
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS etablissement TEXT;
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS niveau_etude TEXT;
+ALTER TABLE stagiaires ADD COLUMN IF NOT EXISTS specialite TEXT;
+
+-- Colonnes manquantes dans demandes
+ALTER TABLE demandes ADD COLUMN IF NOT EXISTS documents_joints TEXT[];
+ALTER TABLE demandes ADD COLUMN IF NOT EXISTS pieces_jointes JSONB DEFAULT '{}';
+
+-- =============================================================================
+-- 3. CRÉER LES INDEX MANQUANTS
+-- =============================================================================
+
+-- Index pour améliorer les performances
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+CREATE INDEX IF NOT EXISTS idx_stagiaires_user_id ON stagiaires(user_id);
+CREATE INDEX IF NOT EXISTS idx_stagiaires_tuteur_id ON stagiaires(tuteur_id);
+CREATE INDEX IF NOT EXISTS idx_stagiaires_statut ON stagiaires(statut);
+CREATE INDEX IF NOT EXISTS idx_demandes_stagiaire_id ON demandes(stagiaire_id);
+CREATE INDEX IF NOT EXISTS idx_demandes_tuteur_id ON demandes(tuteur_id);
+CREATE INDEX IF NOT EXISTS idx_demandes_statut ON demandes(statut);
+CREATE INDEX IF NOT EXISTS idx_demandes_type ON demandes(type);
+CREATE INDEX IF NOT EXISTS idx_demandes_date_demande ON demandes(date_demande);
+
+-- Index pour les notifications si la table existe
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications') THEN
+        CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_lu ON notifications(lu);
+        CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+    END IF;
+END $$;
+
+-- Index pour les documents si la table existe
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'documents') THEN
+        CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id);
+        CREATE INDEX IF NOT EXISTS idx_documents_demande_id ON documents(demande_id);
+        CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(type);
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 4. CORRIGER LES CONTRAINTES MANQUANTES
+-- =============================================================================
+
+-- Vérifier et corriger les contraintes CHECK pour users.role
+DO $$
+DECLARE
+    constraint_exists BOOLEAN;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.check_constraints cc
+        JOIN information_schema.constraint_column_usage ccu ON cc.constraint_name = ccu.constraint_name
+        WHERE ccu.table_name = 'users' AND ccu.column_name = 'role'
+    ) INTO constraint_exists;
+    
+    IF NOT constraint_exists THEN
+        ALTER TABLE users ADD CONSTRAINT check_user_role 
+        CHECK (role IN ('admin', 'rh', 'tuteur', 'stagiaire'));
+    END IF;
+END $$;
+
+-- Vérifier et corriger les contraintes CHECK pour demandes.statut
+DO $$
+DECLARE
+    constraint_exists BOOLEAN;
+BEGIN
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.check_constraints cc
+        JOIN information_schema.constraint_column_usage ccu ON cc.constraint_name = ccu.constraint_name
+        WHERE ccu.table_name = 'demandes' AND ccu.column_name = 'statut'
+    ) INTO constraint_exists;
+    
+    IF NOT constraint_exists THEN
+        ALTER TABLE demandes ADD CONSTRAINT check_demande_statut 
+        CHECK (statut IN ('en_attente', 'approuvee', 'rejetee', 'en_cours', 'terminee'));
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 5. CORRIGER LES DONNÉES INCOHÉRENTES
+-- =============================================================================
+
+-- Créer des entrées stagiaires pour les utilisateurs stagiaires qui n'en ont pas
+INSERT INTO stagiaires (user_id, entreprise, poste, statut, created_at, updated_at)
+SELECT 
+    u.id,
+    'Bridge Technologies Solutions',
+    'Stagiaire',
+    'actif',
+    NOW(),
+    NOW()
+FROM users u
+LEFT JOIN stagiaires s ON u.id = s.user_id
+WHERE u.role = 'stagiaire' AND s.id IS NULL;
+
+-- Corriger les demandes avec des statuts incohérents
+UPDATE demandes 
+SET date_reponse = NOW()
+WHERE (statut = 'approuvee' OR statut = 'rejetee') AND date_reponse IS NULL;
+
+-- =============================================================================
+-- 6. CRÉER LES FONCTIONS HELPER MANQUANTES
+-- =============================================================================
+
+-- Fonction pour créer un utilisateur de test
+CREATE OR REPLACE FUNCTION create_test_user(
+    p_email TEXT,
+    p_name TEXT,
+    p_role TEXT DEFAULT 'stagiaire'
+)
+RETURNS UUID AS $$
+DECLARE
+    user_id UUID;
+BEGIN
+    INSERT INTO users (email, name, role, is_active, created_at, updated_at)
+    VALUES (p_email, p_name, p_role, true, NOW(), NOW())
+    RETURNING id INTO user_id;
+    
+    -- Si c'est un stagiaire, créer l'entrée correspondante
+    IF p_role = 'stagiaire' THEN
+        INSERT INTO stagiaires (user_id, entreprise, poste, statut, created_at, updated_at)
+        VALUES (user_id, 'Bridge Technologies Solutions', 'Stagiaire', 'actif', NOW(), NOW());
+    END IF;
+    
+    RETURN user_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Fonction pour obtenir les statistiques de la base
+CREATE OR REPLACE FUNCTION get_database_stats()
+RETURNS TABLE(
+    table_name TEXT,
+    record_count BIGINT,
+    table_size TEXT
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        t.table_name::TEXT,
+        COALESCE(
+            (SELECT COUNT(*) FROM pg_stat_user_tables WHERE relname = t.table_name), 
+            0
+        ) as record_count,
+        pg_size_pretty(
+            COALESCE(
+                (SELECT pg_total_relation_size(schemaname||'.'||relname) 
+                 FROM pg_stat_user_tables WHERE relname = t.table_name), 
+                0
+            )
+        ) as table_size
+    FROM information_schema.tables t
+    WHERE t.table_schema = 'public' 
+      AND t.table_type = 'BASE TABLE'
+    ORDER BY record_count DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =============================================================================
+-- 7. INSÉRER LES PARAMÈTRES SYSTÈME PAR DÉFAUT
+-- =============================================================================
+
+
+-- =============================================================================
+-- RÉSUMÉ DES CORRECTIONS
+-- =============================================================================
+
+SELECT 
+    'CORRECTIONS APPLIQUÉES' as status,
+    NOW() as correction_time,
+    'Base de données mise à jour selon les standards' as message;
+
+-- Afficher les statistiques finales
+SELECT * FROM get_database_stats();
