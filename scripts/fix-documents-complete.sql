@@ -1,4 +1,3 @@
-
 -- Corriger complètement la table documents
 DROP TABLE IF EXISTS documents CASCADE;
 
