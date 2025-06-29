@@ -1,116 +1,116 @@
-import { type NextRequest, NextResponse } from "next/server"
+
+import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { settingsService } from "@/lib/services/settings-service"
 
 export async function GET() {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
 
-    // Vérifier l'authentification et les permissions
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    // Vérifier les permissions admin
+    const { data: adminProfile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single()
 
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    if (!adminProfile || adminProfile.role !== "admin") {
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    // Récupérer tous les paramètres système
-    const { data: settings, error } = await supabase.from("system_settings").select("key, value")
+    // Créer la table system_settings si elle n'existe pas
+    const { error: createTableError } = await supabase.rpc('create_system_settings_table')
+    
+    if (createTableError) {
+      console.log("Table system_settings existe déjà ou erreur:", createTableError.message)
+    }
 
-    if (error) {
-      // Si la table n'existe pas, retourner des paramètres par défaut
-      if (error.message.includes("does not exist")) {
-        console.warn("Table system_settings n'existe pas, utilisation des valeurs par défaut")
+    // Récupérer les paramètres ou créer des valeurs par défaut
+    let { data: settings, error } = await supabase
+      .from("system_settings")
+      .select("*")
+
+    if (error || !settings || settings.length === 0) {
+      // Créer des paramètres par défaut
+      const defaultSettings = [
+        { key: "company_name", value: "Bridge Technologies Solutions", description: "Nom de l'entreprise" },
+        { key: "app_name", value: "Stage Manager", description: "Nom de l'application" },
+        { key: "default_stage_duration", value: "3", description: "Durée par défaut du stage en mois" },
+        { key: "notification_email", value: "admin@bridge-tech.com", description: "Email de notification" }
+      ]
+
+      const { data: newSettings, error: insertError } = await supabase
+        .from("system_settings")
+        .insert(defaultSettings)
+        .select()
+
+      if (insertError) {
+        console.error("Erreur création paramètres:", insertError)
         return NextResponse.json({ 
           success: true, 
-          data: {
-            company_name: "Bridge Technologies Solutions",
-            company_address: "123 Rue de la Technologie, Yaoundé, Cameroun",
-            company_phone: "+237 123 456 789",
-            company_email: "contact@bridgetech.cm",
-            max_stagiaires_per_tuteur: 5,
-            stage_duration_months: 6,
-            notification_email_enabled: true,
-            auto_assign_tuteur: true,
-            require_document_approval: true,
-            session_timeout_hours: 8
-          }
+          data: defaultSettings.map((s, i) => ({ id: i + 1, ...s, created_at: new Date().toISOString() }))
         })
       }
-      throw error
+
+      settings = newSettings
     }
 
-    // Transformer en objet
-    const settingsObject = settings.reduce((acc: any, setting: any) => {
-      try {
-        acc[setting.key] = JSON.parse(setting.value)
-      } catch {
-        acc[setting.key] = setting.value
-      }
-      return acc
-    }, {})
+    return NextResponse.json({ success: true, data: settings })
 
-    return NextResponse.json({ success: true, data: settingsObject })
-  } catch (error) {
-    console.error("Erreur lors de la récupération des paramètres:", error)
+  } catch (error: any) {
+    console.error("Erreur API settings:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
 
-export async function PUT(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient()
+    const supabase = createClient()
 
-    // Vérifier l'authentification et les permissions
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
       return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
     }
 
-    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
+    // Vérifier les permissions admin
+    const { data: adminProfile } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", user.id)
+      .single()
 
-    if (!profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    if (!adminProfile || adminProfile.role !== "admin") {
+      return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
     const settings = await request.json()
 
-    console.log("⚙️ Mise à jour des paramètres système:", settings)
-
-    // Mettre à jour chaque paramètre
-    for (const [key, value] of Object.entries(settings)) {
+    // Mettre à jour les paramètres
+    for (const setting of settings) {
       const { error } = await supabase
         .from("system_settings")
-        .upsert({ key, value: JSON.stringify(value) }, { onConflict: "key" })
+        .upsert({
+          key: setting.key,
+          value: setting.value,
+          description: setting.description,
+          updated_at: new Date().toISOString()
+        })
 
       if (error) {
-        throw error
+        console.error("Erreur update setting:", error)
       }
     }
 
-    // **INVALIDER LE CACHE** pour impact immédiat
-    settingsService.invalidateCache()
+    return NextResponse.json({ success: true, message: "Paramètres mis à jour" })
 
-    console.log("✅ Paramètres mis à jour et cache invalidé")
-
-    return NextResponse.json({
-      success: true,
-      message: "Paramètres mis à jour avec succès - Impact immédiat activé",
-    })
-  } catch (error) {
-    console.error("Erreur lors de la mise à jour des paramètres:", error)
+  } catch (error: any) {
+    console.error("Erreur POST settings:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }
