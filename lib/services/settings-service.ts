@@ -1,4 +1,3 @@
-
 import { createClient } from "@/lib/supabase/client"
 
 interface SystemSettings {
@@ -58,40 +57,49 @@ class SettingsService {
     }
   }
 
-  invalidateCache(): void {
-    this.cache = {}
-    this.cacheExpiry = 0
-    console.log("🔄 Cache des paramètres invalidé")
-  }
-
   private async loadSettings(): Promise<void> {
     try {
       const supabase = createClient()
-      const { data: settings, error } = await supabase
-        .from("system_settings")
-        .select("key, value")
 
-      if (error) throw error
+      const { data: settings, error } = await supabase.from("system_settings").select("key, value")
 
-      this.cache = settings.reduce((acc: SystemSettings, setting: any) => {
+      if (error) {
+        console.warn("⚠️ Erreur chargement paramètres:", error)
+        this.cache = this.getDefaultSettings()
+        return
+      }
+
+      this.cache = {}
+      settings?.forEach((setting) => {
         try {
-          acc[setting.key] = JSON.parse(setting.value)
+          this.cache[setting.key] = JSON.parse(setting.value)
         } catch {
-          acc[setting.key] = setting.value
+          this.cache[setting.key] = setting.value
         }
-        return acc
-      }, {})
+      })
+
+      // Ajouter les valeurs par défaut pour les clés manquantes
+      const defaults = this.getDefaultSettings()
+      Object.keys(defaults).forEach((key) => {
+        if (this.cache[key] === undefined) {
+          this.cache[key] = defaults[key]
+        }
+      })
 
       this.cacheExpiry = Date.now() + this.CACHE_DURATION
-      console.log("✅ Paramètres chargés en cache")
     } catch (error) {
-      console.error("❌ Erreur chargement paramètres:", error)
+      console.warn("⚠️ Exception chargement paramètres:", error)
       this.cache = this.getDefaultSettings()
     }
   }
 
   private isCacheValid(): boolean {
-    return Date.now() < this.cacheExpiry
+    return Date.now() < this.cacheExpiry && Object.keys(this.cache).length > 0
+  }
+
+  private invalidateCache(): void {
+    this.cacheExpiry = 0
+    this.cache = {}
   }
 
   private getDefaultValue(key: string): any {
