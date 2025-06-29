@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, ArrowLeft } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
-import Header from "@/components/layout/header"
+
 
 interface Stagiaire {
   id: string
