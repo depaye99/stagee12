@@ -84,29 +84,38 @@ export default function AdminDashboard() {
     try {
       console.log("📊 Chargement des statistiques...")
 
-      const response = await fetch("/api/statistics")
+      const response = await fetch("/api/statistics/dashboard")
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
 
-      const data = await response.json()
+      const result = await response.json()
 
-      if (data.success) {
-        console.log("✅ Statistiques chargées:", data.data)
-        setStats(data.data)
-      } else {
-        console.error("❌ Erreur API stats:", data.error)
-        throw new Error(data.error)
+      if (result.success) {
+        const stats = result.data
+        // Simuler les données pour compatibility
+        setUsers(Array(stats.users.total).fill(null).map((_, i) => ({ 
+          id: i, 
+          role: i < stats.users.admin ? 'admin' : 
+                i < stats.users.admin + stats.users.rh ? 'rh' :
+                i < stats.users.admin + stats.users.rh + stats.users.tuteur ? 'tuteur' : 'stagiaire'
+        })))
+        setDemandes(Array(stats.demandes.total).fill(null).map((_, i) => ({ 
+          id: i, 
+          statut: i < stats.demandes.en_attente ? 'en_attente' :
+                  i < stats.demandes.en_attente + stats.demandes.approuvee ? 'approuvee' : 'rejetee'
+        })))
+        setDocuments(Array(stats.documents.total).fill(null).map((_, i) => ({ id: i })))
       }
+
+      console.log("✅ Statistiques chargées")
     } catch (error) {
-      console.error("💥 Erreur lors du chargement des statistiques:", error)
-      // Utiliser des stats par défaut
-      setStats({
-        stagiaires_total: 0,
-        demandes_total: 0,
-        documents_total: 0,
-        evaluations_total: 0,
+      console.error("❌ Erreur lors du chargement des statistiques:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les statistiques",
+        variant: "destructive",
       })
     }
   }

@@ -43,19 +43,51 @@ export default function RHDashboard() {
 
   const loadStats = async () => {
     try {
-      const [stagiairesCount, demandesCount, demandesEnAttenteCount] = await Promise.all([
-        supabase.from("stagiaires").select("id", { count: "exact", head: true }),
-        supabase.from("demandes").select("id", { count: "exact", head: true }),
-        supabase.from("demandes").select("id", { count: "exact", head: true }).eq("statut", "en_attente"),
+      console.log("📊 Chargement des statistiques RH...")
+
+      const [stagiairesResponse, demandesResponse, statsResponse] = await Promise.all([
+        fetch("/api/rh/stagiaires"),
+        fetch("/api/rh/demandes"),
+        fetch("/api/statistics/dashboard")
       ])
 
-      setStats({
-        stagiaires_total: stagiairesCount.count || 0,
-        demandes_total: demandesCount.count || 0,
-        demandes_en_attente: demandesEnAttenteCount.count || 0,
-      })
+      if (stagiairesResponse.ok) {
+        const stagiairesData = await stagiairesResponse.json()
+        setStagiaires(stagiairesData.data || [])
+      }
+
+      if (demandesResponse.ok) {
+        const demandesData = await demandesResponse.json()
+        setDemandes(demandesData.data || [])
+      }
+
+      // Charger les statistiques générales si les API spécifiques échouent
+      if (statsResponse.ok) {
+        const statsData = await statsResponse.json()
+        if (statsData.success) {
+          if (!stagiaires.length) {
+            setStagiaires(Array(statsData.data.stagiaires.total).fill(null).map((_, i) => ({ 
+              id: i, 
+              statut: i < statsData.data.stagiaires.actif ? 'actif' : 'termine' 
+            })))
+          }
+          if (!demandes.length) {
+            setDemandes(Array(statsData.data.demandes.total).fill(null).map((_, i) => ({ 
+              id: i, 
+              statut: i < statsData.data.demandes.en_attente ? 'en_attente' : 'approuvee' 
+            })))
+          }
+        }
+      }
+
+      console.log("✅ Statistiques RH chargées")
     } catch (error) {
-      console.error("Erreur lors du chargement des statistiques:", error)
+      console.error("❌ Erreur lors du chargement des statistiques RH:", error)
+      toast({
+        title: "Erreur",
+        description: "Impossible de charger les statistiques",
+        variant: "destructive",
+      })
     }
   }
 

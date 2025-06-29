@@ -86,11 +86,36 @@ export async function POST(request: NextRequest) {
 
     // Si c'est un stagiaire, créer l'entrée dans la table stagiaires
     if (validatedData.role === "stagiaire") {
+      // Assigner automatiquement un tuteur
+      const { data: tuteurs } = await supabase
+        .from("users")
+        .select(`
+          id, name,
+          stagiaires_count:stagiaires(count)
+        `)
+        .eq("role", "tuteur")
+        .eq("is_active", true)
+
+      let tuteurId = null
+      if (tuteurs && tuteurs.length > 0) {
+        const tuteurAvecMoinsDeStages = tuteurs.reduce((prev, current) => {
+          const prevCount = prev.stagiaires_count?.[0]?.count || 0
+          const currentCount = current.stagiaires_count?.[0]?.count || 0
+          return currentCount < prevCount ? current : prev
+        })
+        tuteurId = tuteurAvecMoinsDeStages.id
+      }
+
       const { error: stagiaireError } = await supabase
         .from("stagiaires")
         .insert({
           user_id: authData.user.id,
-          statut: "actif"
+          entreprise: "Bridge Technologies Solutions",
+          poste: "Stagiaire",
+          tuteur_id: tuteurId,
+          statut: "actif",
+          date_debut: new Date().toISOString().split('T')[0],
+          date_fin: new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] // 6 mois plus tard
         })
 
       if (stagiaireError) {
