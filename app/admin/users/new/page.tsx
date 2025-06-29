@@ -132,7 +132,7 @@ export default function NewUserPage() {
 
       const result = await response.json()
 
-      if (!response.ok) {
+      if (!response.ok || !result.success) {
         throw new Error(result.error || "Erreur lors de la création")
       }
 

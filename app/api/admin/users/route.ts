@@ -34,7 +34,34 @@ export async function POST(request: NextRequest) {
     // Validation des données requises
     if (!userData.email || !userData.password || !userData.name || !userData.role) {
       return NextResponse.json({ 
+        success: false,
         error: "Données manquantes (email, password, name, role requis)" 
+      }, { status: 400 })
+    }
+
+    // Validation du format email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(userData.email)) {
+      return NextResponse.json({ 
+        success: false,
+        error: "Format d'email invalide" 
+      }, { status: 400 })
+    }
+
+    // Validation du mot de passe
+    if (userData.password.length < 6) {
+      return NextResponse.json({ 
+        success: false,
+        error: "Le mot de passe doit contenir au moins 6 caractères" 
+      }, { status: 400 })
+    }
+
+    // Validation du rôle
+    const validRoles = ['admin', 'rh', 'tuteur', 'stagiaire']
+    if (!validRoles.includes(userData.role)) {
+      return NextResponse.json({ 
+        success: false,
+        error: "Rôle invalide" 
       }, { status: 400 })
     }
 
@@ -46,14 +73,23 @@ export async function POST(request: NextRequest) {
       user_metadata: {
         name: userData.name,
         role: userData.role
-      },
+      }
     })
 
     if (authUserError) {
       console.error("❌ Erreur création auth:", authUserError)
       return NextResponse.json({ 
+        success: false,
         error: authUserError.message || "Erreur lors de la création du compte" 
       }, { status: 400 })
+    }
+
+    if (!authUser.user) {
+      console.error("❌ Aucun utilisateur créé")
+      return NextResponse.json({ 
+        success: false,
+        error: "Erreur lors de la création du compte" 
+      }, { status: 500 })
     }
 
     console.log("✅ Utilisateur auth créé:", authUser.user?.id)
@@ -80,10 +116,12 @@ export async function POST(request: NextRequest) {
       // Supprimer l'utilisateur auth si erreur profil
       try {
         await supabase.auth.admin.deleteUser(authUser.user!.id)
+        console.log("✅ Utilisateur auth supprimé après erreur profil")
       } catch (deleteError) {
         console.error("❌ Erreur suppression utilisateur auth:", deleteError)
       }
       return NextResponse.json({ 
+        success: false,
         error: userError.message || "Erreur lors de la création du profil" 
       }, { status: 400 })
     }
@@ -91,23 +129,30 @@ export async function POST(request: NextRequest) {
     // Si l'utilisateur est un stagiaire, créer également l'entrée dans la table stagiaires
     if (userData.role === "stagiaire") {
       // Trouver un tuteur disponible
-      const { data: tuteurs } = await supabase
+      const { data: tuteurs, error: tuteursError } = await supabase
         .from("users")
         .select(`
-          id, name,
-          stagiaires_count:stagiaires(count)
+          id, 
+          name,
+          stagiaires!tuteur_id(count)
         `)
         .eq("role", "tuteur")
         .eq("is_active", true)
 
+      if (tuteursError) {
+        console.error("❌ Erreur récupération tuteurs:", tuteursError)
+      }
+
       let tuteurId = null
       if (tuteurs && tuteurs.length > 0) {
+        // Trouver le tuteur avec le moins de stagiaires
         const tuteurAvecMoinsDeStages = tuteurs.reduce((prev, current) => {
-          const prevCount = prev.stagiaires_count?.[0]?.count || 0
-          const currentCount = current.stagiaires_count?.[0]?.count || 0
+          const prevCount = Array.isArray(prev.stagiaires) ? prev.stagiaires.length : 0
+          const currentCount = Array.isArray(current.stagiaires) ? current.stagiaires.length : 0
           return currentCount < prevCount ? current : prev
         })
         tuteurId = tuteurAvecMoinsDeStages.id
+        console.log("✅ Tuteur assigné:", tuteurAvecMoinsDeStages.name)
       }
 
       const { error: stagiaireError } = await supabase
@@ -120,8 +165,8 @@ export async function POST(request: NextRequest) {
           statut: "actif",
           specialite: userData.specialite || null,
           niveau: userData.niveau || null,
-          date_debut: userData.date_debut || null,
-          date_fin: userData.date_fin || null,
+          date_debut: userData.date_debut || new Date().toISOString().split('T')[0],
+          date_fin: userData.date_fin || new Date(Date.now() + 6 * 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 6 mois
           notes: userData.notes || null
         })
 
@@ -138,12 +183,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       message: "Utilisateur créé avec succès",
-      data: newUser,
+      data: {
+        ...newUser,
+        auth_id: authUser.user!.id
+      }
     })
   } catch (error) {
     console.error("💥 Erreur création utilisateur:", error)
     return NextResponse.json({ 
-      error: "Erreur serveur interne" 
+      success: false,
+      error: "Erreur serveur interne",
+      details: error instanceof Error ? error.message : "Erreur inconnue"
     }, { status: 500 })
   }
 }
