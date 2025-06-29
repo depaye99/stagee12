@@ -7,7 +7,11 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, 
+SelectTrigger, SelectValue } from "@/components/ui/select"
+
+import Header from '@/components/layout/header';
+
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, ArrowLeft } from "lucide-react"
 import { Slider } from "@/components/ui/slider"
