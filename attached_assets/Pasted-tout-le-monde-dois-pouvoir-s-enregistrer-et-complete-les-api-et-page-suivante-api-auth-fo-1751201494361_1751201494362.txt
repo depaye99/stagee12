@@ -1,0 +1,147 @@
+tout le monde dois pouvoir s enregistrer 
+
+et complete les api et page suivante 
+
+❌ /api/auth/forgot-password - Manquant
+
+❌ /api/auth/reset-password - Manquant
+
+❌ /api/auth/verify-email - Manquant
+
+APIs de gestion des demandes :
+
+❌ /api/stagiaire/demandes/[id]/edit - Manquant
+
+❌ /api/tuteur/demandes/[id]/approve - Manquant
+
+❌ /api/tuteur/demandes/[id]/reject - Manquant
+
+APIs de documents :
+
+❌ /api/documents/upload - Incomplet
+
+❌ /api/documents/[id]/edit - Manquant
+
+❌ /api/documents/[id]/delete - Manquant
+
+APIs d'évaluations :
+
+❌ /api/evaluations - Manquant complètement
+
+❌ /api/evaluations/[id] - Manquant
+
+❌ /api/tuteur/evaluations - Manquant
+
+APIs de planification :
+
+❌ /api/planning/create - Manquant
+
+❌ /api/planning/[id]/edit - Manquant
+
+❌ /api/planning/[id]/delete - Manquant
+
+2. Pages manquantes ou incomplètes :
+
+Système d'authentification :
+
+❌ /auth/forgot-password/page.tsx - Manquant
+
+❌ /auth/reset-password/page.tsx - Manquant
+
+❌ /auth/verify-email/page.tsx - Manquant
+
+Dashboard principal :
+
+❌ /dashboard/page.tsx - Manquant (redirection après login)
+
+Gestion des évaluations :
+
+❌ /evaluations/[id]/edit/page.tsx - Manquant
+
+❌ /evaluations/new/page.tsx - Manquant
+
+Système de notifications :
+
+❌ /notifications/page.tsx - Manquant
+
+❌ Composant de notifications en temps réel - Manquant
+
+3. Composants UI manquants :
+
+Composants de données :
+
+❌ components/data-table.tsx - Pour l'affichage des listes
+
+❌ components/charts/ - Graphiques et statistiques
+
+❌ components/file-upload.tsx - Upload de fichiers
+
+Composants de navigation :
+
+❌ components/layout/sidebar.tsx - Navigation latérale
+
+❌ components/layout/breadcrumbs.tsx - Fil d'Ariane
+
+❌ components/layout/user-menu.tsx - Menu utilisateur
+
+Composants métier :
+
+❌ components/demande-form.tsx - Formulaire de demande
+
+❌ components/evaluation-form.tsx - Formulaire d'évaluation
+
+❌ components/planning-calendar.tsx - Calendrier de planification
+
+4. Services et utilitaires manquants :
+
+Services de données :
+
+❌ lib/services/evaluation-service.ts - Service évaluations
+
+❌ lib/services/planning-service.ts - Service planification
+
+❌ lib/services/upload-service.ts - Service upload fichiers
+
+Utilitaires :
+
+❌ lib/validations/ - Schémas de validation
+
+❌ lib/hooks/use-auth.ts - Hook d'authentification
+
+❌ lib/hooks/use-pagination.ts - Hook de pagination
+
+limitinghttps://stageml.vercel.app/tuteur/evaluations/new (ne vois pas mes stagiaires donc ne peux pas ajouter de nouvelle évaluation)
+
+impossible de charger les informetion des stagiare sur l'ensemble des page du tuteurs 
+
+je ne vois pqs les demqde de mes stqgiqre /tuteur/demandes
+
+https://stageml.vercel.app/tuteur/planning ( N'arrive pas a créer de nouveau planning)
+
+impossible de charger les planing 
+
+pas de footer 
+
+/stagiaire 
+
+j'ai des erreur pour recuperrer les donnee sur la page je ne recupere pas bien ca Mes demandes ,Évaluations
+
+implemente ceci  Vous recevrez une notification par email lors du traitement
+
+/stagiaire/documents je veux pouvoir voir le contenu de mes document et celui de mes demande et aussi telecharger mes doccuments
+
+Erreur lors du chargement du stagiaire: Could not embed because more than one relationship was found for 'stagiaires' and 'users'
+
+  at loadStagiaire (/app/rh/stagiaires/[id]/planning/page)
+
+  at async checkAuth (/app/rh/stagiaires/[id]/planning/page)
+
+je dois pouvoir voir le contenu des demade avec leur document /rh/demandes/2c540476-6deb-4ecc-9f34-75b3b5dc83a4
+
+je ne recupere pas les donnee des utilisateur /admin/stagiaires/651476b2-6f1b-40be-a1a3-6a854f690e76  
+
+et remet le bouton pour ajouter ou suprimer des utilisateur ou stagiare chez l'admin 
+
+je veux pouvoir voir les elements incluse dans la demande i compris les documents /admin/demandes/2c540476-6deb-4ecc-9f34-75b3b5dc83a4
+
+je veux pouvoir exporter les raport des demande avec les document aui connstitue
