@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "ID demande invalide" }, { status: 400 })
     }
 
-    // Récupérer la demande avec les informations du stagiaire
+    // Récupérer la demande avec les informations du stagiaire et documents
     const { data: demande, error } = await supabase
       .from("demandes")
       .select(`
@@ -35,6 +35,15 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
           entreprise,
           poste,
           user:users!user_id(name, email)
+        ),
+        documents(
+          id,
+          nom,
+          type,
+          type_fichier,
+          taille,
+          chemin_fichier,
+          created_at
         )
       `)
       .eq("id", params.id)

@@ -302,6 +302,51 @@ export default function TuteurDemandeDetailPage() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Documents fournis */}
+            {demande.documents && demande.documents.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Documents fournis
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {demande.documents.map((doc, index) => (
+                      <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                        <div className="flex items-center gap-2">
+                          <FileText className="h-4 w-4 text-blue-500" />
+                          <div>
+                            <p className="text-sm font-medium">{doc.nom || doc}</p>
+                            {doc.type && (
+                              <p className="text-xs text-gray-500">{doc.type}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => window.open(`/api/documents/${doc.id}/content`, '_blank')}
+                          >
+                            👁️ Voir
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => window.open(`/api/documents/${doc.id}/download`, '_blank')}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Sidebar */}

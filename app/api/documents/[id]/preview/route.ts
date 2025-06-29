@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
@@ -32,31 +33,27 @@ export async function GET(request: Request, { params }: { params: { id: string }
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    // Télécharger depuis Supabase Storage
-    if (document.chemin_fichier) {
-      const { data: fileData, error: downloadError } = await supabase.storage
-        .from("documents")
-        .download(document.chemin_fichier)
-
-      if (downloadError) {
-        console.error("Erreur téléchargement:", downloadError)
-        return NextResponse.json({ error: "Erreur lors du téléchargement" }, { status: 500 })
-      }
-
-      const buffer = await fileData.arrayBuffer()
-
-      return new NextResponse(buffer, {
-        headers: {
-          "Content-Type": document.type_fichier || "application/octet-stream",
-          "Content-Disposition": `attachment; filename="${document.nom}"`,
-          "Content-Length": buffer.byteLength.toString(),
-        },
-      })
-    }
-
-    return NextResponse.json({ error: "Fichier non disponible" }, { status: 404 })
+    // Retourner les métadonnées pour la prévisualisation
+    return NextResponse.json({
+      success: true,
+      data: {
+        id: document.id,
+        nom: document.nom,
+        type: document.type,
+        type_fichier: document.type_fichier,
+        taille: document.taille,
+        description: document.description,
+        created_at: document.created_at,
+        url: document.url,
+        downloadUrl: `/api/documents/${document.id}/download`,
+        contentUrl: `/api/documents/${document.id}/content`,
+        canPreview: ["image/", "application/pdf", "text/"].some(type => 
+          document.type_fichier?.startsWith(type)
+        )
+      },
+    })
   } catch (error) {
-    console.error("Erreur téléchargement document:", error)
+    console.error("Erreur prévisualisation document:", error)
     return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
   }
 }

@@ -251,11 +251,32 @@ export default function RHDemandeDetailPage() {
                     <label className="text-sm font-medium text-gray-600">Documents fournis</label>
                     <div className="mt-2 space-y-2">
                       {demande.documents.map((doc, index) => (
-                        <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
-                          <span className="text-sm">{doc}</span>
-                          <Button size="sm" variant="outline">
-                            <Download className="h-4 w-4" />
-                          </Button>
+                        <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-blue-500" />
+                            <span className="text-sm font-medium">{doc.nom || doc}</span>
+                            {doc.taille && (
+                              <span className="text-xs text-gray-500">
+                                ({Math.round(doc.taille / 1024)} KB)
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.open(`/api/documents/${doc.id}/content`, '_blank')}
+                            >
+                              👁️ Voir
+                            </Button>
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => window.open(`/api/documents/${doc.id}/download`, '_blank')}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       ))}
                     </div>
