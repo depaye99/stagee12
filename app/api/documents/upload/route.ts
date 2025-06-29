@@ -14,8 +14,16 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get("file") as File
-    const type = formData.get("type") as string
-    const isPublic = formData.get("isPublic") === "true"
+    const metadataStr = formData.get("metadata") as string
+    
+    let metadata = { nom: "", type: "autre", description: "" }
+    if (metadataStr) {
+      try {
+        metadata = JSON.parse(metadataStr)
+      } catch (e) {
+        console.error("Erreur parsing metadata:", e)
+      }
+    }
 
     if (!file) {
       return NextResponse.json({ error: "Aucun fichier fourni" }, { status: 400 })
@@ -65,45 +73,27 @@ export async function POST(request: NextRequest) {
         }, { status: 500 })
       }
 
-      // Obtenir l'URL publique ou signée
-      let publicUrl: string
-      if (isPublic) {
-        const { data: { publicUrl: url } } = supabase.storage
-          .from("documents")
-          .getPublicUrl(filePath)
-        publicUrl = url
-      } else {
-        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-          .from("documents")
-          .createSignedUrl(filePath, 60 * 60 * 24 * 7) // 7 jours
-
-        if (signedUrlError) {
-          console.error("Erreur création URL signée:", signedUrlError)
-          // Fallback vers URL publique
-          const { data: { publicUrl: fallbackUrl } } = supabase.storage
-            .from("documents")
-            .getPublicUrl(filePath)
-          publicUrl = fallbackUrl
-        } else {
-          publicUrl = signedUrlData.signedUrl
-        }
-      }
+      // Obtenir l'URL publique
+      const { data: { publicUrl } } = supabase.storage
+        .from("documents")
+        .getPublicUrl(filePath)
 
       // Sauvegarder en base
       const { data: document, error: dbError } = await supabase
         .from("documents")
         .insert({
-          nom: file.name,
-          type: type || "autre",
-          description: "",
+          nom: metadata.nom || file.name,
+          type: metadata.type || "autre",
+          description: metadata.description || "",
           chemin_fichier: filePath,
           url: publicUrl,
           taille: file.size,
           type_fichier: file.type,
           user_id: user.id,
-          statut: "valide",
-          is_public: isPublic,
-          created_at: new Date().toISOString()
+          statut: "approuve",
+          is_public: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
         })
         .select()
         .single()
@@ -121,7 +111,7 @@ export async function POST(request: NextRequest) {
 
       return NextResponse.json({ 
         success: true, 
-        data: {
+        document: {
           id: document.id,
           url: publicUrl,
           nom: document.nom,

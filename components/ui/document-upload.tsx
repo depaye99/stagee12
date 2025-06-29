@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useCallback } from "react"
@@ -14,9 +15,16 @@ import { Upload, File, X, Loader2 } from "lucide-react"
 interface DocumentUploadProps {
   onUploadSuccess?: (document: any) => void
   onUploadError?: (error: string) => void
+  acceptedTypes?: string[]
+  maxSize?: number
 }
 
-export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploadProps) {
+export function DocumentUpload({ 
+  onUploadSuccess, 
+  onUploadError,
+  acceptedTypes = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.txt'],
+  maxSize = 10 * 1024 * 1024 // 10MB
+}: DocumentUploadProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [metadata, setMetadata] = useState({
@@ -40,7 +48,7 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
     }
   }, [metadata.nom])
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+  const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
     accept: {
       'application/pdf': ['.pdf'],
@@ -50,9 +58,28 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
       'image/png': ['.png'],
       'text/plain': ['.txt']
     },
-    maxSize: 10 * 1024 * 1024, // 10MB
+    maxSize: maxSize,
     multiple: false
   })
+
+  // Afficher les erreurs de rejet de fichier
+  if (fileRejections.length > 0) {
+    const rejection = fileRejections[0]
+    const errorCode = rejection.errors[0]?.code
+    
+    let errorMessage = "Fichier rejeté"
+    if (errorCode === 'file-too-large') {
+      errorMessage = `Fichier trop volumineux (max ${formatFileSize(maxSize)})`
+    } else if (errorCode === 'file-invalid-type') {
+      errorMessage = "Type de fichier non autorisé"
+    }
+    
+    toast({
+      title: "Erreur",
+      description: errorMessage,
+      variant: "destructive"
+    })
+  }
 
   const handleUpload = async () => {
     if (!selectedFile) {
@@ -64,7 +91,7 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
       return
     }
 
-    if (!metadata.nom) {
+    if (!metadata.nom.trim()) {
       toast({
         title: "Erreur",
         description: "Veuillez donner un nom au document",
@@ -100,7 +127,7 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
       setSelectedFile(null)
       setMetadata({ nom: "", type: "autre", description: "" })
 
-      if (onUploadSuccess) {
+      if (onUploadSuccess && result.document) {
         onUploadSuccess(result.document)
       }
 
@@ -157,7 +184,7 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
                   Glissez-déposez un fichier ici, ou cliquez pour sélectionner
                 </p>
                 <p className="text-sm text-gray-500">
-                  PDF, DOC, DOCX, JPG, PNG, TXT (max 10MB)
+                  PDF, DOC, DOCX, JPG, PNG, TXT (max {formatFileSize(maxSize)})
                 </p>
               </div>
             )}
@@ -181,6 +208,7 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
                   variant="ghost"
                   size="sm"
                   onClick={removeFile}
+                  disabled={uploading}
                 >
                   <X className="h-4 w-4" />
                 </Button>
@@ -201,12 +229,17 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
                 value={metadata.nom}
                 onChange={(e) => setMetadata(prev => ({ ...prev, nom: e.target.value }))}
                 placeholder="Nom du document"
+                disabled={uploading}
               />
             </div>
 
             <div>
               <Label htmlFor="type">Type de document</Label>
-              <Select value={metadata.type} onValueChange={(value) => setMetadata(prev => ({ ...prev, type: value as any }))}>
+              <Select 
+                value={metadata.type} 
+                onValueChange={(value) => setMetadata(prev => ({ ...prev, type: value as any }))}
+                disabled={uploading}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -226,12 +259,13 @@ export function DocumentUpload({ onUploadSuccess, onUploadError }: DocumentUploa
                 onChange={(e) => setMetadata(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Description optionnelle"
                 rows={3}
+                disabled={uploading}
               />
             </div>
 
             <Button
               onClick={handleUpload}
-              disabled={uploading || !selectedFile || !metadata.nom}
+              disabled={uploading || !selectedFile || !metadata.nom.trim()}
               className="w-full"
             >
               {uploading ? (
