@@ -10,7 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, 
 SelectTrigger, SelectValue } from "@/components/ui/select"
 
-import Header from '@/components/layout/header';
+import { Header } from "@/components/layout/header"
+
 
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Save, ArrowLeft } from "lucide-react"
