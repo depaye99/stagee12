@@ -88,16 +88,46 @@ export async function POST(request: NextRequest) {
 
     // Si l'utilisateur est un stagiaire, créer également l'entrée dans la table stagiaires
     if (userData.role === "stagiaire") {
+      // Trouver un tuteur disponible
+      const { data: tuteurs } = await supabase
+        .from("users")
+        .select(`
+          id, name,
+          stagiaires_count:stagiaires(count)
+        `)
+        .eq("role", "tuteur")
+        .eq("is_active", true)
+
+      let tuteurId = null
+      if (tuteurs && tuteurs.length > 0) {
+        const tuteurAvecMoinsDeStages = tuteurs.reduce((prev, current) => {
+          const prevCount = prev.stagiaires_count?.[0]?.count || 0
+          const currentCount = current.stagiaires_count?.[0]?.count || 0
+          return currentCount < prevCount ? current : prev
+        })
+        tuteurId = tuteurAvecMoinsDeStages.id
+      }
+
       const { error: stagiaireError } = await supabase
         .from("stagiaires")
         .insert({
           user_id: authUser.user!.id,
-          statut: "actif"
+          entreprise: userData.entreprise || "Bridge Technologies Solutions",
+          poste: userData.poste || "Stagiaire",
+          tuteur_id: tuteurId,
+          statut: "actif",
+          specialite: userData.specialite || null,
+          niveau: userData.niveau || null,
+          date_debut: userData.date_debut || null,
+          date_fin: userData.date_fin || null,
+          notes: userData.notes || null
         })
 
       if (stagiaireError) {
         console.warn("⚠️ Erreur création profil stagiaire:", stagiaireError)
         // Ne pas faire échouer la création pour cette erreur
+      } else {
+        console.log("✅ Profil stagiaire créé avec succès")
       }
     }
 

@@ -26,29 +26,18 @@ export async function GET() {
       return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
     }
 
-    // Récupérer les stagiaires assignés à ce tuteur
-    const { data: stagiaires, error: stagiairesError } = await supabase
+    // Récupérer les stagiaires assignés au tuteur
+    const { data: stagiaires, error } = await supabase
       .from("stagiaires")
       .select(`
-        id,
-        statut,
-        date_debut,
-        date_fin,
-        created_at,
-        updated_at,
-        users!inner (
-          id,
-          name,
-          email,
-          phone,
-          department
-        )
+        *,
+        user:users!stagiaires_user_id_fkey(id, name, email, phone, is_active)
       `)
-      .eq("tuteur_id", user.id)
+      .eq("tuteur_id", profile.id)
       .order("created_at", { ascending: false })
 
-    if (stagiairesError) {
-      console.error("❌ Erreur récupération stagiaires tuteur:", stagiairesError)
+    if (error) {
+      console.error("❌ Erreur récupération stagiaires tuteur:", error)
       return NextResponse.json({
         success: true,
         data: [],

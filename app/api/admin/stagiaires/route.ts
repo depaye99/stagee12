@@ -39,13 +39,13 @@ export async function GET() {
 
     console.log("✅ Utilisateur admin confirmé")
 
-    // Récupérer tous les stagiaires avec leurs relations
+    // Récupérer tous les stagiaires avec relations
     const { data: stagiaires, error } = await supabase
       .from("stagiaires")
       .select(`
         *,
-        user:users!user_id(id, name, email, phone),
-        tuteur:users!tuteur_id(id, name, email)
+        user:users!stagiaires_user_id_fkey(id, name, email, phone, is_active),
+        tuteur:users!stagiaires_tuteur_id_fkey(id, name, email)
       `)
       .order("created_at", { ascending: false })
 

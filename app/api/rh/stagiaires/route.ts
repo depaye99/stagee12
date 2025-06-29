@@ -24,8 +24,8 @@ export async function GET(request: NextRequest) {
       .from("stagiaires")
       .select(`
         *,
-        users!user_id(name, email, phone),
-        tuteur:users!tuteur_id(name, email)
+        user:users!stagiaires_user_id_fkey(id, name, email, phone, is_active),
+        tuteur:users!stagiaires_tuteur_id_fkey(id, name, email)
       `)
       .order("created_at", { ascending: false })
 
