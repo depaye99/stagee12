@@ -1,43 +1,72 @@
-import { type NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const supabase = await createClient()
 
-    // Vérifier l'authentification et les permissions
+    // Vérifier l'authentification
     const {
-      data: { session },
-    } = await supabase.auth.getSession()
-    if (!session) {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
       return NextResponse.json({ error: "Non authentifié" }, { status: 401 })
     }
 
-    const { data: currentUser } = await supabase.from("users").select("role").eq("id", session.user.id).single()
+    // Vérifier que l'utilisateur est tuteur
+    const { data: profile } = await supabase.from("users").select("role").eq("id", user.id).single()
 
-    if (!currentUser || currentUser.role !== "tuteur") {
+    if (!profile || profile.role !== "tuteur") {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    // Récupérer les demandes des stagiaires du tuteur
+    console.log("🔍 Récupération des demandes pour le tuteur:", user.id)
+
+    // Récupérer les demandes des stagiaires assignés à ce tuteur
     const { data: demandes, error } = await supabase
       .from("demandes")
       .select(`
-        *,
-        stagiaires(
+        id,
+        stagiaire_id,
+        type,
+        titre,
+        description,
+        statut,
+        date_demande,
+        date_reponse,
+        commentaire_reponse,
+        documents_joints,
+        pieces_jointes,
+        stagiaires!inner (
           id,
           entreprise,
-          users!user_id(name, email)
+          poste,
+          users!stagiaires_user_id_fkey (
+            id,
+            name,
+            email
+          )
         )
       `)
-      .eq("tuteur_id", session.user.id)
+      .eq("stagiaires.tuteur_id", user.id)
       .order("date_demande", { ascending: false })
 
-    if (error) throw error
+    if (error) {
+      console.error("❌ Erreur récupération demandes tuteur:", error)
+      return NextResponse.json({ error: "Erreur lors de la récupération des demandes" }, { status: 500 })
+    }
 
-    return NextResponse.json({ success: true, data: demandes })
+    console.log("✅ Demandes du tuteur récupérées:", demandes?.length || 0)
+
+    return NextResponse.json({
+      success: true,
+      data: demandes || [],
+      count: demandes?.length || 0,
+    })
   } catch (error) {
-    console.error("Erreur lors de la récupération des demandes:", error)
-    return NextResponse.json({ error: "Erreur serveur" }, { status: 500 })
+    console.error("💥 Erreur API demandes tuteur:", error)
+    return NextResponse.json({ error: "Erreur serveur interne" }, { status: 500 })
   }
 }
