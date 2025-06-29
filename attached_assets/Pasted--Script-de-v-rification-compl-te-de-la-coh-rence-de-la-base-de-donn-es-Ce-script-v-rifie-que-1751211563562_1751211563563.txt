@@ -1,0 +1,395 @@
+
+-- Script de vérification complète de la cohérence de la base de données
+-- Ce script vérifie que la structure de la DB correspond aux besoins des APIs et du front-end
+
+-- =============================================================================
+-- 1. VÉRIFICATION DE L'EXISTENCE DES TABLES PRINCIPALES
+-- =============================================================================
+
+DO $$
+DECLARE
+    missing_tables TEXT[] := ARRAY[]::TEXT[];
+    table_name TEXT;
+    required_tables TEXT[] := ARRAY[
+        'users', 'stagiaires', 'demandes', 'documents', 'evaluations', 
+        'notifications', 'templates', 'system_settings', 'audit_log',
+        'demande_documents', 'email_notifications'
+    ];
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES TABLES ===';
+    
+    FOREACH table_name IN ARRAY required_tables
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.tables 
+            WHERE table_schema = 'public' AND table_name = table_name
+        ) THEN
+            missing_tables := array_append(missing_tables, table_name);
+        END IF;
+    END LOOP;
+    
+    IF array_length(missing_tables, 1) > 0 THEN
+        RAISE WARNING 'Tables manquantes: %', array_to_string(missing_tables, ', ');
+    ELSE
+        RAISE NOTICE 'Toutes les tables principales existent ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 2. VÉRIFICATION DE LA STRUCTURE DE LA TABLE USERS
+-- =============================================================================
+
+DO $$
+DECLARE
+    missing_columns TEXT[] := ARRAY[]::TEXT[];
+    column_name TEXT;
+    required_columns TEXT[] := ARRAY[
+        'id', 'email', 'name', 'role', 'phone', 'address', 'department', 
+        'position', 'avatar_url', 'is_active', 'created_at', 'updated_at',
+        'last_login', 'email_verified', 'preferences', 'settings', 'profile_completed'
+    ];
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DE LA TABLE USERS ===';
+    
+    FOREACH column_name IN ARRAY required_columns
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'users' AND column_name = column_name
+        ) THEN
+            missing_columns := array_append(missing_columns, column_name);
+        END IF;
+    END LOOP;
+    
+    IF array_length(missing_columns, 1) > 0 THEN
+        RAISE WARNING 'Colonnes manquantes dans users: %', array_to_string(missing_columns, ', ');
+    ELSE
+        RAISE NOTICE 'Structure de la table users ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 3. VÉRIFICATION DE LA TABLE STAGIAIRES
+-- =============================================================================
+
+DO $$
+DECLARE
+    missing_columns TEXT[] := ARRAY[]::TEXT[];
+    column_name TEXT;
+    required_columns TEXT[] := ARRAY[
+        'id', 'user_id', 'tuteur_id', 'entreprise', 'poste', 'date_debut',
+        'date_fin', 'duree_mois', 'statut', 'notes', 'objectifs', 
+        'competences_acquises', 'etablissement', 'niveau_etude', 'specialite'
+    ];
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DE LA TABLE STAGIAIRES ===';
+    
+    FOREACH column_name IN ARRAY required_columns
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'stagiaires' AND column_name = column_name
+        ) THEN
+            missing_columns := array_append(missing_columns, column_name);
+        END IF;
+    END LOOP;
+    
+    IF array_length(missing_columns, 1) > 0 THEN
+        RAISE WARNING 'Colonnes manquantes dans stagiaires: %', array_to_string(missing_columns, ', ');
+    ELSE
+        RAISE NOTICE 'Structure de la table stagiaires ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 4. VÉRIFICATION DE LA TABLE DEMANDES
+-- =============================================================================
+
+DO $$
+DECLARE
+    missing_columns TEXT[] := ARRAY[]::TEXT[];
+    column_name TEXT;
+    required_columns TEXT[] := ARRAY[
+        'id', 'stagiaire_id', 'tuteur_id', 'type', 'titre', 'description',
+        'justification', 'statut', 'priorite', 'date_demande', 'date_limite',
+        'date_reponse', 'date_traitement', 'commentaire_reponse', 'commentaire_interne',
+        'documents_requis', 'documents_fournis', 'metadata', 'documents_joints', 'pieces_jointes'
+    ];
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DE LA TABLE DEMANDES ===';
+    
+    FOREACH column_name IN ARRAY required_columns
+    LOOP
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'demandes' AND column_name = column_name
+        ) THEN
+            missing_columns := array_append(missing_columns, column_name);
+        END IF;
+    END LOOP;
+    
+    IF array_length(missing_columns, 1) > 0 THEN
+        RAISE WARNING 'Colonnes manquantes dans demandes: %', array_to_string(missing_columns, ', ');
+    ELSE
+        RAISE NOTICE 'Structure de la table demandes ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 5. VÉRIFICATION DES CONTRAINTES ET RELATIONS
+-- =============================================================================
+
+DO $$
+DECLARE
+    constraint_count INTEGER;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES CONTRAINTES ===';
+    
+    -- Vérifier les contraintes de clés étrangères pour stagiaires
+    SELECT COUNT(*) INTO constraint_count
+    FROM information_schema.table_constraints tc
+    WHERE tc.constraint_type = 'FOREIGN KEY' 
+      AND tc.table_name = 'stagiaires'
+      AND tc.constraint_name IN ('stagiaires_user_id_fkey', 'stagiaires_tuteur_id_fkey');
+    
+    IF constraint_count < 2 THEN
+        RAISE WARNING 'Contraintes FK manquantes pour stagiaires (trouvées: %/2)', constraint_count;
+    ELSE
+        RAISE NOTICE 'Contraintes FK stagiaires ✓';
+    END IF;
+    
+    -- Vérifier les contraintes de clés étrangères pour demandes
+    SELECT COUNT(*) INTO constraint_count
+    FROM information_schema.table_constraints tc
+    WHERE tc.constraint_type = 'FOREIGN KEY' 
+      AND tc.table_name = 'demandes'
+      AND tc.constraint_name IN ('demandes_stagiaire_id_fkey', 'demandes_tuteur_id_fkey');
+    
+    IF constraint_count < 2 THEN
+        RAISE WARNING 'Contraintes FK manquantes pour demandes (trouvées: %/2)', constraint_count;
+    ELSE
+        RAISE NOTICE 'Contraintes FK demandes ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 6. VÉRIFICATION DES ÉNUMÉRATIONS ET CONTRAINTES CHECK
+-- =============================================================================
+
+DO $$
+DECLARE
+    check_count INTEGER;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES CONTRAINTES CHECK ===';
+    
+    -- Vérifier les contraintes CHECK pour le rôle utilisateur
+    SELECT COUNT(*) INTO check_count
+    FROM information_schema.check_constraints cc
+    JOIN information_schema.constraint_column_usage ccu ON cc.constraint_name = ccu.constraint_name
+    WHERE ccu.table_name = 'users' AND ccu.column_name = 'role'
+      AND cc.check_clause LIKE '%admin%' AND cc.check_clause LIKE '%rh%' 
+      AND cc.check_clause LIKE '%tuteur%' AND cc.check_clause LIKE '%stagiaire%';
+    
+    IF check_count = 0 THEN
+        RAISE WARNING 'Contrainte CHECK manquante pour users.role';
+    ELSE
+        RAISE NOTICE 'Contrainte CHECK users.role ✓';
+    END IF;
+    
+    -- Vérifier les contraintes CHECK pour le statut des demandes
+    SELECT COUNT(*) INTO check_count
+    FROM information_schema.check_constraints cc
+    JOIN information_schema.constraint_column_usage ccu ON cc.constraint_name = ccu.constraint_name
+    WHERE ccu.table_name = 'demandes' AND ccu.column_name = 'statut'
+      AND cc.check_clause LIKE '%en_attente%' AND cc.check_clause LIKE '%approuvee%';
+    
+    IF check_count = 0 THEN
+        RAISE WARNING 'Contrainte CHECK manquante pour demandes.statut';
+    ELSE
+        RAISE NOTICE 'Contrainte CHECK demandes.statut ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 7. VÉRIFICATION DES INDEX POUR LES PERFORMANCES
+-- =============================================================================
+
+DO $$
+DECLARE
+    index_count INTEGER;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES INDEX ===';
+    
+    -- Vérifier les index sur les colonnes fréquemment utilisées
+    SELECT COUNT(*) INTO index_count
+    FROM pg_indexes 
+    WHERE tablename = 'demandes' AND indexname LIKE '%stagiaire_id%';
+    
+    IF index_count = 0 THEN
+        RAISE WARNING 'Index manquant sur demandes.stagiaire_id';
+    END IF;
+    
+    SELECT COUNT(*) INTO index_count
+    FROM pg_indexes 
+    WHERE tablename = 'notifications' AND indexname LIKE '%user_id%';
+    
+    IF index_count = 0 THEN
+        RAISE WARNING 'Index manquant sur notifications.user_id';
+    END IF;
+    
+    RAISE NOTICE 'Vérification des index terminée';
+END $$;
+
+-- =============================================================================
+-- 8. VÉRIFICATION DE LA COHÉRENCE DES DONNÉES
+-- =============================================================================
+
+DO $$
+DECLARE
+    orphan_count INTEGER;
+    inconsistent_count INTEGER;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DE LA COHÉRENCE DES DONNÉES ===';
+    
+    -- Vérifier les stagiaires orphelins (sans utilisateur)
+    SELECT COUNT(*) INTO orphan_count
+    FROM stagiaires s
+    LEFT JOIN users u ON s.user_id = u.id
+    WHERE u.id IS NULL;
+    
+    IF orphan_count > 0 THEN
+        RAISE WARNING 'Stagiaires orphelins trouvés: %', orphan_count;
+    ELSE
+        RAISE NOTICE 'Aucun stagiaire orphelin ✓';
+    END IF;
+    
+    -- Vérifier les utilisateurs stagiaires sans entrée dans stagiaires
+    SELECT COUNT(*) INTO orphan_count
+    FROM users u
+    LEFT JOIN stagiaires s ON u.id = s.user_id
+    WHERE u.role = 'stagiaire' AND s.id IS NULL;
+    
+    IF orphan_count > 0 THEN
+        RAISE WARNING 'Utilisateurs stagiaires sans entrée stagiaires: %', orphan_count;
+    ELSE
+        RAISE NOTICE 'Tous les utilisateurs stagiaires ont une entrée stagiaires ✓';
+    END IF;
+    
+    -- Vérifier les demandes avec des statuts incohérents
+    SELECT COUNT(*) INTO inconsistent_count
+    FROM demandes
+    WHERE (statut = 'approuvee' OR statut = 'rejetee') AND date_reponse IS NULL;
+    
+    IF inconsistent_count > 0 THEN
+        RAISE WARNING 'Demandes avec statut incohérent: %', inconsistent_count;
+    ELSE
+        RAISE NOTICE 'Statuts des demandes cohérents ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 9. VÉRIFICATION DES FONCTIONS NÉCESSAIRES POUR LES APIS
+-- =============================================================================
+
+DO $$
+DECLARE
+    function_exists BOOLEAN;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES FONCTIONS ===';
+    
+    -- Vérifier si les fonctions helper existent
+    SELECT EXISTS (
+        SELECT 1 FROM pg_proc p
+        JOIN pg_namespace n ON p.pronamespace = n.oid
+        WHERE n.nspname = 'public' AND p.proname = 'create_test_user'
+    ) INTO function_exists;
+    
+    IF NOT function_exists THEN
+        RAISE WARNING 'Fonction create_test_user manquante';
+    ELSE
+        RAISE NOTICE 'Fonction create_test_user ✓';
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 10. RAPPORT FINAL ET STATISTIQUES
+-- =============================================================================
+
+DO $$
+DECLARE
+    total_users INTEGER;
+    total_stagiaires INTEGER;
+    total_demandes INTEGER;
+    total_documents INTEGER;
+    total_notifications INTEGER;
+BEGIN
+    RAISE NOTICE '=== STATISTIQUES FINALES ===';
+    
+    SELECT COUNT(*) INTO total_users FROM users;
+    SELECT COUNT(*) INTO total_stagiaires FROM stagiaires;
+    SELECT COUNT(*) INTO total_demandes FROM demandes;
+    
+    -- Vérifier si la table documents existe avant de compter
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'documents') THEN
+        SELECT COUNT(*) INTO total_documents FROM documents;
+    ELSE
+        total_documents := 0;
+    END IF;
+    
+    -- Vérifier si la table notifications existe avant de compter
+    IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'notifications') THEN
+        SELECT COUNT(*) INTO total_notifications FROM notifications;
+    ELSE
+        total_notifications := 0;
+    END IF;
+    
+    RAISE NOTICE 'Total Users: %', total_users;
+    RAISE NOTICE 'Total Stagiaires: %', total_stagiaires;
+    RAISE NOTICE 'Total Demandes: %', total_demandes;
+    RAISE NOTICE 'Total Documents: %', total_documents;
+    RAISE NOTICE 'Total Notifications: %', total_notifications;
+    
+    -- Vérifier la cohérence entre users et stagiaires
+    IF total_users > 0 THEN
+        RAISE NOTICE 'Ratio Stagiaires/Users: %', ROUND((total_stagiaires::DECIMAL / total_users::DECIMAL) * 100, 2);
+    END IF;
+END $$;
+
+-- =============================================================================
+-- 11. VÉRIFICATION DES POLITIQUES RLS (ROW LEVEL SECURITY)
+-- =============================================================================
+
+DO $$
+DECLARE
+    rls_enabled BOOLEAN;
+    policy_count INTEGER;
+BEGIN
+    RAISE NOTICE '=== VÉRIFICATION DES POLITIQUES RLS ===';
+    
+    -- Vérifier si RLS est activé sur les tables sensibles
+    SELECT relrowsecurity INTO rls_enabled
+    FROM pg_class 
+    WHERE relname = 'users' AND relnamespace = (SELECT oid FROM pg_namespace WHERE nspname = 'public');
+    
+    IF rls_enabled THEN
+        RAISE NOTICE 'RLS activé sur users ✓';
+    ELSE
+        RAISE WARNING 'RLS non activé sur users';
+    END IF;
+    
+    -- Compter les politiques existantes
+    SELECT COUNT(*) INTO policy_count
+    FROM pg_policies 
+    WHERE schemaname = 'public' AND tablename IN ('users', 'stagiaires', 'demandes');
+    
+    RAISE NOTICE 'Nombre de politiques RLS: %', policy_count;
+END $$;
+
+-- =============================================================================
+-- RÉSUMÉ FINAL
+-- =============================================================================
+
+SELECT 
+    'VÉRIFICATION TERMINÉE' as status,
+    NOW() as verification_time,
+    'Consultez les messages ci-dessus pour les détails' as message;
