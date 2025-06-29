@@ -1,4 +1,3 @@
-
 -- Script pour corriger la création automatique des stagiaires lors de l'inscription
 
 -- 1. Fonction pour assigner automatiquement un tuteur

@@ -1,4 +1,3 @@
-
 -- Script de vérification complète de la cohérence de la base de données
 -- Ce script vérifie que la structure de la DB correspond aux besoins des APIs et du front-end
 

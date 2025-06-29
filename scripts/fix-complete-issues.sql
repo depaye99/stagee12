@@ -1,4 +1,3 @@
-
 -- Script de correction complète pour tous les problèmes identifiés
 
 -- 1. Correction de la fonction get_database_stats() 

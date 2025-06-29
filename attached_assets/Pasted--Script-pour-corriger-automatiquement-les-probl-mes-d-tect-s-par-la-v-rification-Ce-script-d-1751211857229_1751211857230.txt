@@ -1,4 +1,3 @@
-
 -- Script pour corriger automatiquement les problèmes détectés par la vérification
 -- Ce script doit être exécuté après le script de vérification
 
