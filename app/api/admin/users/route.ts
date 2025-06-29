@@ -1,81 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
 
-export async function GET() {
-  try {
-    console.log("🔍 API Admin Users - Début de la requête")
-
-    const supabase = await createClient()
-
-    // Vérifier l'authentification
-    const {
-      data: { session },
-      error: sessionError,
-    } = await supabase.auth.getSession()
-
-    if (sessionError || !session?.user) {
-      console.log("❌ Pas de session utilisateur:", sessionError?.message)
-      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
-    }
-
-    console.log("✅ Session trouvée pour:", session.user.email)
-
-    // Vérifier que l'utilisateur est admin
-    const { data: adminProfile, error: adminError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", session.user.id)
-      .single()
-
-    if (adminError) {
-      console.error("❌ Erreur récupération profil admin:", adminError)
-      return NextResponse.json({ success: false, error: "Erreur de vérification des permissions" }, { status: 500 })
-    }
-
-    if (!adminProfile || adminProfile.role !== "admin") {
-      console.log("❌ Utilisateur non autorisé:", adminProfile?.role)
-      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
-    }
-
-    console.log("✅ Utilisateur admin confirmé")
-
-    // Récupérer tous les utilisateurs
-    const { data: users, error: usersError } = await supabase
-      .from("users")
-      .select(`
-        id,
-        email,
-        name,
-        role,
-        phone,
-        department,
-        position,
-        is_active,
-        created_at,
-        last_login
-      `)
-      .order("created_at", { ascending: false })
-
-    if (usersError) {
-      console.error("❌ Erreur lors de la récupération des utilisateurs:", usersError)
-      return NextResponse.json(
-        { success: false, error: `Erreur lors de la récupération des utilisateurs: ${usersError.message}` },
-        { status: 500 },
-      )
-    }
-
-    console.log("✅ Utilisateurs récupérés:", users?.length || 0)
-
-    return NextResponse.json({
-      success: true,
-      data: users || [],
-    })
-  } catch (error: any) {
-    console.error("💥 Erreur API Admin Users:", error)
-    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
     console.log("🔍 API Admin Users POST - Début de la requête")
@@ -173,6 +98,81 @@ export async function POST(request: NextRequest) {
     })
   } catch (error: any) {
     console.error("💥 Erreur API Admin Users POST:", error)
+    return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
+  }
+}
+
+export async function GET() {
+  try {
+    console.log("🔍 API Admin Users - Début de la requête")
+
+    const supabase = await createClient()
+
+    // Vérifier l'authentification
+    const {
+      data: { session },
+      error: sessionError,
+    } = await supabase.auth.getSession()
+
+    if (sessionError || !session?.user) {
+      console.log("❌ Pas de session utilisateur:", sessionError?.message)
+      return NextResponse.json({ success: false, error: "Non authentifié" }, { status: 401 })
+    }
+
+    console.log("✅ Session trouvée pour:", session.user.email)
+
+    // Vérifier que l'utilisateur est admin
+    const { data: adminProfile, error: adminError } = await supabase
+      .from("users")
+      .select("role")
+      .eq("id", session.user.id)
+      .single()
+
+    if (adminError) {
+      console.error("❌ Erreur récupération profil admin:", adminError)
+      return NextResponse.json({ success: false, error: "Erreur de vérification des permissions" }, { status: 500 })
+    }
+
+    if (!adminProfile || adminProfile.role !== "admin") {
+      console.log("❌ Utilisateur non autorisé:", adminProfile?.role)
+      return NextResponse.json({ success: false, error: "Accès non autorisé" }, { status: 403 })
+    }
+
+    console.log("✅ Utilisateur admin confirmé")
+
+    // Récupérer tous les utilisateurs
+    const { data: users, error: usersError } = await supabase
+      .from("users")
+      .select(`
+        id,
+        email,
+        name,
+        role,
+        phone,
+        department,
+        position,
+        is_active,
+        created_at,
+        last_login
+      `)
+      .order("created_at", { ascending: false })
+
+    if (usersError) {
+      console.error("❌ Erreur lors de la récupération des utilisateurs:", usersError)
+      return NextResponse.json(
+        { success: false, error: `Erreur lors de la récupération des utilisateurs: ${usersError.message}` },
+        { status: 500 },
+      )
+    }
+
+    console.log("✅ Utilisateurs récupérés:", users?.length || 0)
+
+    return NextResponse.json({
+      success: true,
+      data: users || [],
+    })
+  } catch (error: any) {
+    console.error("💥 Erreur API Admin Users:", error)
     return NextResponse.json({ success: false, error: `Erreur interne du serveur: ${error.message}` }, { status: 500 })
   }
 }

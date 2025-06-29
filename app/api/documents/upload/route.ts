@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from "next/server"
 import { createRouteHandlerClient } from "@supabase/auth-helpers-nextjs"
 import { cookies } from "next/headers"
@@ -40,7 +41,9 @@ export async function POST(request: NextRequest) {
       'application/msword',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'image/jpeg',
-      'image/png'
+      'image/png',
+      'image/jpg',
+      'text/plain'
     ]
 
     if (!allowedTypes.includes(file.type)) {
@@ -73,12 +76,15 @@ export async function POST(request: NextRequest) {
       .insert({
         nom: validatedMetadata.nom,
         type: validatedMetadata.type,
-        description: validatedMetadata.description,
-        file_path: filePath,
-        file_url: publicUrl,
-        file_size: file.size,
-        file_type: file.type,
-        uploaded_by: user.id,
+        description: validatedMetadata.description || "",
+        chemin_fichier: filePath,
+        url: publicUrl,
+        taille: file.size,
+        type_fichier: file.type,
+        user_id: user.id,
+        statut: "approuve",
+        is_public: false,
+        created_at: new Date().toISOString()
       })
       .select()
       .single()
@@ -87,12 +93,12 @@ export async function POST(request: NextRequest) {
       console.error("Erreur sauvegarde document:", dbError)
       // Supprimer le fichier uploadé en cas d'erreur
       await supabase.storage.from("documents").remove([filePath])
-      return NextResponse.json({ error: "Erreur lors de la sauvegarde" }, { status: 500 })
+      return NextResponse.json({ error: "Erreur lors de la sauvegarde: " + dbError.message }, { status: 500 })
     }
 
-    return NextResponse.json({ document })
+    return NextResponse.json({ success: true, document })
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Erreur upload document:", error)
 
     if (error instanceof z.ZodError) {
@@ -102,6 +108,41 @@ export async function POST(request: NextRequest) {
       }, { status: 400 })
     }
 
+    return NextResponse.json({ error: "Erreur interne: " + error.message }, { status: 500 })
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const supabase = createRouteHandlerClient({ cookies })
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+    }
+
+    // Récupérer les documents de l'utilisateur
+    const { data: documents, error: fetchError } = await supabase
+      .from("documents")
+      .select(`
+        *,
+        users:user_id (
+          name,
+          email
+        )
+      `)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+
+    if (fetchError) {
+      console.error("Erreur récupération documents:", fetchError)
+      return NextResponse.json({ error: "Erreur lors de la récupération" }, { status: 500 })
+    }
+
+    return NextResponse.json({ success: true, documents })
+
+  } catch (error: any) {
+    console.error("Erreur GET documents:", error)
     return NextResponse.json({ error: "Erreur interne" }, { status: 500 })
   }
 }
