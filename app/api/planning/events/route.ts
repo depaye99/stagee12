@@ -1,3 +1,4 @@
+
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 
@@ -16,35 +17,39 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const stagiaireId = searchParams.get('stagiaire_id')
-    const tuteurId = searchParams.get('tuteur_id')
+    const start = searchParams.get('start')
+    const end = searchParams.get('end')
 
     let query = supabase
-      .from('evaluations')
+      .from('planning')
       .select(`
         *,
         stagiaire:stagiaires!inner(
           id,
-          user_id,
           users!inner(name, email)
         ),
-        evaluateur:users!evaluations_evaluateur_id_fkey(name, email)
+        tuteur:users!planning_tuteur_id_fkey(name, email)
       `)
-      .order('created_at', { ascending: false })
+      .order('date_debut', { ascending: true })
 
     if (stagiaireId) {
       query = query.eq('stagiaire_id', stagiaireId)
     }
 
-    if (tuteurId) {
-      query = query.eq('tuteur_id', tuteurId)
+    if (start) {
+      query = query.gte('date_debut', start)
+    }
+
+    if (end) {
+      query = query.lte('date_fin', end)
     }
 
     const { data, error } = await query
 
     if (error) {
-      console.error('Erreur get evaluations:', error)
+      console.error('Erreur récupération planning:', error)
       return NextResponse.json(
-        { error: 'Erreur lors de la récupération des évaluations' },
+        { error: 'Erreur lors de la récupération du planning' },
         { status: 500 }
       )
     }
@@ -52,7 +57,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(data)
 
   } catch (error) {
-    console.error('Erreur evaluations:', error)
+    console.error('Erreur planning events:', error)
     return NextResponse.json(
       { error: 'Erreur serveur' },
       { status: 500 }
@@ -73,21 +78,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const evaluationData = await request.json()
+    const eventData = await request.json()
 
     const { data, error } = await supabase
-      .from('evaluations')
+      .from('planning')
       .insert({
-        ...evaluationData,
-        evaluateur_id: user.id,
+        ...eventData,
+        tuteur_id: user.id,
         created_at: new Date().toISOString()
       })
       .select()
 
     if (error) {
-      console.error('Erreur create evaluation:', error)
+      console.error('Erreur création événement:', error)
       return NextResponse.json(
-        { error: 'Erreur lors de la création de l\'évaluation' },
+        { error: 'Erreur lors de la création de l\'événement' },
         { status: 500 }
       )
     }
@@ -95,7 +100,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(data[0], { status: 201 })
 
   } catch (error) {
-    console.error('Erreur create evaluation:', error)
+    console.error('Erreur création événement:', error)
     return NextResponse.json(
       { error: 'Erreur serveur' },
       { status: 500 }

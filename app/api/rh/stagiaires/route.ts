@@ -19,15 +19,28 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Accès non autorisé" }, { status: 403 })
     }
 
-    // Récupérer tous les stagiaires avec relations
+    // Récupérer tous les stagiaires avec leurs informations utilisateur
     const { data: stagiaires, error } = await supabase
-      .from("stagiaires")
+      .from('stagiaires')
       .select(`
         *,
-        user:users!stagiaires_user_id_fkey(id, name, email, phone, is_active),
-        tuteur:users!stagiaires_tuteur_id_fkey(id, name, email)
+        users!inner(
+          id,
+          name,
+          email,
+          phone,
+          address,
+          is_active,
+          role
+        ),
+        tuteur:users!stagiaires_tuteur_id_fkey(
+          id,
+          name,
+          email
+        )
       `)
-      .order("created_at", { ascending: false })
+      .eq('users.role', 'stagiaire')
+      .order('created_at', { ascending: false })
 
     if (error) throw error
 

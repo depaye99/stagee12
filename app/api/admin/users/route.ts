@@ -5,25 +5,27 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = await createClient()
 
-    // Vérifier l'authentification et les permissions
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Non autorisé" }, { status: 401 })
+      return NextResponse.json(
+        { error: 'Non autorisé' },
+        { status: 401 }
+      )
     }
 
-    // Vérifier le rôle admin avec gestion d'erreur
-    const { data: profile, error: profileError } = await supabase
-      .from("users")
-      .select("role")
-      .eq("id", user.id)
+    // Vérifier les permissions admin
+    const { data: userProfile } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
       .single()
 
-    if (profileError || !profile || profile.role !== "admin") {
-      return NextResponse.json({ error: "Accès refusé" }, { status: 403 })
+    if (!userProfile || userProfile.role !== 'admin') {
+      return NextResponse.json(
+        { error: 'Permissions insuffisantes' },
+        { status: 403 }
+      )
     }
 
     const userData = await request.json()
