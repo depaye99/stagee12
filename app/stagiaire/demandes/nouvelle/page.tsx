@@ -29,9 +29,11 @@ export default function NouvelleDemandePage() {
     date_fin: "",
     description: "",
     fichier_justificatif: null as File | null,
+    fichier_justificatif_url: "",
   })
   const [prolongationData, setProlongationData] = useState({
     document_prolongation: null as File | null,
+    document_prolongation_url: "",
     periode_extension: "",
   })
   const [periode, setPeriode] = useState({
@@ -117,14 +119,22 @@ export default function NouvelleDemandePage() {
       formData.append("type", documentType)
       formData.append("isPublic", "false")
 
+      console.log("📤 Upload démarré:", { fileName: file.name, type: documentType, size: file.size })
+
       const response = await fetch("/api/documents/upload", {
         method: "POST",
         body: formData,
       })
 
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error("❌ Erreur HTTP:", response.status, errorText)
+        throw new Error(`Erreur ${response.status}: ${errorText}`)
+      }
+
       const result = await response.json()
 
-      if (!response.ok) {
+      if (!result.success) {
         throw new Error(result.error || "Erreur lors de l'upload")
       }
 
@@ -133,8 +143,8 @@ export default function NouvelleDemandePage() {
     } catch (error) {
       console.error("❌ Erreur upload:", error)
       toast({
-        title: "Erreur",
-        description: `Erreur lors de l'upload de ${file.name}`,
+        title: "Erreur d'upload",
+        description: `Impossible d'uploader ${file.name}: ${error instanceof Error ? error.message : "Erreur inconnue"}`,
         variant: "destructive",
       })
       return null
@@ -154,15 +164,24 @@ export default function NouvelleDemandePage() {
     const fileUrl = await uploadFile(file, documentType)
 
     if (fileUrl) {
-      // Mettre à jour l'état selon le type de demande
+      // Mettre à jour l'état selon le type de demande avec l'URL
       if (documentType === "fichier_justificatif") {
-        setCongeData((prev) => ({ ...prev, fichier_justificatif: file }))
+        setCongeData((prev) => ({ 
+          ...prev, 
+          fichier_justificatif: file,
+          fichier_justificatif_url: fileUrl 
+        }))
       } else if (documentType === "document_prolongation") {
-        setProlongationData((prev) => ({ ...prev, document_prolongation: file }))
+        setProlongationData((prev) => ({ 
+          ...prev, 
+          document_prolongation: file,
+          document_prolongation_url: fileUrl 
+        }))
       } else {
         setDocuments((prev) => ({
           ...prev,
           [documentType]: file,
+          [`${documentType}_url`]: fileUrl,
         }))
       }
 

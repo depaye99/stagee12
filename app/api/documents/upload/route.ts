@@ -1,13 +1,6 @@
+
 import { NextRequest, NextResponse } from "next/server"
 import { createClient } from "@/lib/supabase/server"
-import { z } from "zod"
-
-const uploadDocumentSchema = z.object({
-  nom: z.string().min(1, "Le nom du document est requis"),
-  type: z.enum(["stage", "evaluation", "autre", "cv", "certificat_scolarite", "lettre_motivation", "lettre_recommandation", "convention", "attestation"]),
-  description: z.string().optional(),
-  demande_id: z.string().optional(),
-})
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,28 +14,19 @@ export async function POST(request: NextRequest) {
 
     const formData = await request.formData()
     const file = formData.get("file") as File
-    const metadataStr = formData.get("metadata") as string
+    const type = formData.get("type") as string
+    const isPublic = formData.get("isPublic") === "true"
 
     if (!file) {
       return NextResponse.json({ error: "Aucun fichier fourni" }, { status: 400 })
     }
 
-    let metadata
-    try {
-      metadata = JSON.parse(metadataStr || '{}')
-    } catch {
-      return NextResponse.json({ error: "Métadonnées invalides" }, { status: 400 })
-    }
-
-    // Valider les métadonnées
-    const validatedMetadata = uploadDocumentSchema.parse(metadata)
-
-    // Vérifier la taille du fichier (max 10MB selon les exigences)
+    // Vérifier la taille du fichier (max 10MB)
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json({ error: "Fichier trop volumineux (max 10MB)" }, { status: 400 })
     }
 
-    // Types de fichiers autorisés selon les exigences
+    // Types de fichiers autorisés
     const allowedTypes = [
       'application/pdf',
       'application/msword',
@@ -61,91 +45,101 @@ export async function POST(request: NextRequest) {
 
     // Générer un nom de fichier sécurisé
     const fileExtension = file.name.split('.').pop()?.toLowerCase()
-    const sanitizedFileName = validatedMetadata.nom.replace(/[^a-zA-Z0-9]/g, '_')
-    const fileName = `${Date.now()}_${sanitizedFileName}.${fileExtension}`
+    const timestamp = Date.now()
+    const fileName = `${timestamp}_${file.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`
     const filePath = `documents/${user.id}/${fileName}`
 
-    // Upload vers Supabase Storage avec gestion d'erreur
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("documents")
-      .upload(filePath, file, {
-        cacheControl: '3600',
-        upsert: false
-      })
-
-    if (uploadError) {
-      console.error("Erreur upload storage:", uploadError)
-      return NextResponse.json({ 
-        error: "Erreur lors de l'upload: " + uploadError.message 
-      }, { status: 500 })
-    }
-
-    // Obtenir l'URL publique
-    const { data: { publicUrl } } = supabase.storage
-      .from("documents")
-      .getPublicUrl(filePath)
-
-    // Sauvegarder en base avec traçabilité complète
-    const { data: document, error: dbError } = await supabase
-      .from("documents")
-      .insert({
-        nom: validatedMetadata.nom,
-        type: validatedMetadata.type,
-        description: validatedMetadata.description || "",
-        chemin_fichier: filePath,
-        url: publicUrl,
-        taille: file.size,
-        type_fichier: file.type,
-        user_id: user.id,
-        demande_id: validatedMetadata.demande_id || null,
-        statut: "en_attente", // Workflow de validation
-        is_public: false,
-        created_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-
-    if (dbError) {
-      console.error("Erreur sauvegarde document:", dbError)
-      // Supprimer le fichier uploadé en cas d'erreur
-      await supabase.storage.from("documents").remove([filePath])
-      return NextResponse.json({ 
-        error: "Erreur lors de la sauvegarde: " + dbError.message 
-      }, { status: 500 })
-    }
-
-    // Notification automatique selon les exigences du workflow
-    if (validatedMetadata.demande_id) {
-      // Notifier le tuteur/RH de l'ajout du document
-      try {
-        await supabase.from("notifications").insert({
-          user_id: user.id,
-          titre: "Document ajouté",
-          message: `Un nouveau document "${validatedMetadata.nom}" a été ajouté à une demande`,
-          type: "document",
-          lu: false
+    try {
+      // Upload vers Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from("documents")
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
         })
-      } catch (notifError) {
-        console.warn("Erreur notification:", notifError)
-      }
-    }
 
-    return NextResponse.json({ 
-      success: true, 
-      document,
-      message: "Document uploadé avec succès"
-    })
+      if (uploadError) {
+        console.error("Erreur upload storage:", uploadError)
+        return NextResponse.json({ 
+          error: "Erreur lors de l'upload: " + uploadError.message 
+        }, { status: 500 })
+      }
+
+      // Obtenir l'URL publique ou signée
+      let publicUrl: string
+      if (isPublic) {
+        const { data: { publicUrl: url } } = supabase.storage
+          .from("documents")
+          .getPublicUrl(filePath)
+        publicUrl = url
+      } else {
+        const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(filePath, 60 * 60 * 24 * 7) // 7 jours
+
+        if (signedUrlError) {
+          console.error("Erreur création URL signée:", signedUrlError)
+          // Fallback vers URL publique
+          const { data: { publicUrl: fallbackUrl } } = supabase.storage
+            .from("documents")
+            .getPublicUrl(filePath)
+          publicUrl = fallbackUrl
+        } else {
+          publicUrl = signedUrlData.signedUrl
+        }
+      }
+
+      // Sauvegarder en base
+      const { data: document, error: dbError } = await supabase
+        .from("documents")
+        .insert({
+          nom: file.name,
+          type: type || "autre",
+          description: "",
+          chemin_fichier: filePath,
+          url: publicUrl,
+          taille: file.size,
+          type_fichier: file.type,
+          user_id: user.id,
+          statut: "valide",
+          is_public: isPublic,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+
+      if (dbError) {
+        console.error("Erreur sauvegarde document:", dbError)
+        // Supprimer le fichier uploadé en cas d'erreur
+        await supabase.storage.from("documents").remove([filePath])
+        return NextResponse.json({ 
+          error: "Erreur lors de la sauvegarde: " + dbError.message 
+        }, { status: 500 })
+      }
+
+      console.log("✅ Document uploadé avec succès:", document.id)
+
+      return NextResponse.json({ 
+        success: true, 
+        data: {
+          id: document.id,
+          url: publicUrl,
+          nom: document.nom,
+          type: document.type,
+          taille: document.taille
+        },
+        message: "Document uploadé avec succès"
+      })
+
+    } catch (storageError) {
+      console.error("Erreur storage:", storageError)
+      return NextResponse.json({ 
+        error: "Erreur lors de l'upload vers le stockage" 
+      }, { status: 500 })
+    }
 
   } catch (error: any) {
     console.error("Erreur upload document:", error)
-
-    if (error instanceof z.ZodError) {
-      return NextResponse.json({ 
-        error: "Données invalides", 
-        details: error.errors 
-      }, { status: 400 })
-    }
-
     return NextResponse.json({ 
       error: "Erreur interne: " + error.message 
     }, { status: 500 })
